@@ -1,0 +1,3062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Shop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f1e8;
+            overscroll-behavior: contain;
+        }
+
+        /* Pull to Refresh */
+        #pullRefresh {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        #pullRefresh.active {
+            transform: translateY(0);
+        }
+
+        .refresh-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .running-coffee {
+            font-size: 3em;
+            animation: runningCoffee 0.8s infinite;
+            display: inline-block;
+        }
+
+        @keyframes runningCoffee {
+            0% {
+                transform: translateX(-20px) scaleX(1);
+            }
+            50% {
+                transform: translateX(0) scaleX(1);
+            }
+            100% {
+                transform: translateX(-20px) scaleX(1);
+            }
+        }
+
+        .refresh-text {
+            color: white;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        /* Loading Bar (Orders) */
+        .order-loading-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .order-loading-progress {
+            height: 100%;
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            border-radius: 10px;
+            animation: loadingProgress 3s infinite;
+        }
+
+        @keyframes loadingProgress {
+            0% {
+                width: 0%;
+            }
+            50% {
+                width: 85%;
+            }
+            100% {
+                width: 100%;
+            }
+        }
+
+        .running-coffee-order {
+            font-size: 4em;
+            animation: runningCoffee2 1s infinite;
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        @keyframes runningCoffee2 {
+            0% { transform: translateX(0); }
+            50% { transform: translateX(10px); }
+            100% { transform: translateX(0); }
+        }
+
+        /* Orders - confirmation card and buttons */
+        .order-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+            max-width: 720px;
+            margin: 0 auto 20px auto;
+            text-align: left;
+        }
+        /* Disable add buttons visually when an order is processing */
+        .btn-add.disabled-during-order {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .order-card h3 { color: #8B4513; margin-bottom: 10px; }
+        .order-summary { color: #444; margin-bottom: 12px; }
+
+        .payment-options { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 18px 0; }
+        .payment-option { padding: 10px 14px; border: 2px solid #e6e6e6; border-radius: 8px; cursor: pointer; background: #fafafa; }
+        .payment-option.active { border-color: #8B4513; background: linear-gradient(90deg, #fff9f2, #fff); }
+
+        .payment-field { margin-bottom: 10px; }
+        .payment-field input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; }
+
+        .btn-confirm { background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%); color: white; padding: 12px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; }
+        .btn-cancel { background: white; color: #8B4513; padding: 10px 16px; border: 2px solid #D2691E; border-radius: 8px; cursor: pointer; font-weight: 700; margin-left: 10px; }
+
+        .order-note { font-size: 0.95em; color: #777; margin-top: 10px; }
+
+        /* Toast notification for item added */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 5000;
+            font-weight: 600;
+            animation: slideUp 0.4s ease, slideDown 0.4s ease 2.6s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(100px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(0); opacity: 1; }
+            to { transform: translateX(-50%) translateY(100px); opacity: 0; }
+        }
+
+        /* Language Selector - positioned absolutely at top right */
+        .language-selector { 
+            display: flex; 
+            gap: 10px; 
+            justify-content: flex-end;
+        }
+        .lang-btn { 
+            padding: 10px 16px; 
+            border: 2px solid #8B4513; 
+            background: white; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            white-space: nowrap;
+            color: #333;
+            transition: all 0.3s ease;
+        }
+        .lang-btn:hover { background: #f5f5f5; }
+        .lang-btn.active { 
+            background: linear-gradient(90deg, #8B4513, #D2691E); 
+            color: white; 
+            border-color: #8B4513;
+        }
+        
+        /* Welcome overlay styles */
+        #welcomeScreen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            z-index: 1400;
+            padding: 20px;
+        }
+        
+        /* Language selector positioned absolutely at top right */
+        #welcomeScreen .language-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1401;
+            margin: 0;
+        }
+        
+        /* Welcome card container */
+        #welcomeScreen .welcome-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .lang-btn { padding:8px 12px; border:2px solid #e6e6e6; background:#fff; border-radius:6px; cursor:pointer; font-weight:600; }
+        .lang-btn.active { background: linear-gradient(90deg,#8B4513,#D2691E); color:#fff; border-color:transparent; }
+
+        .welcome-container p {
+            color: #666;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #D2691E;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #8B4513;
+        }
+
+        .id-display {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .btn-enter {
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            color: white;
+            padding: 12px 40px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-top: 20px;
+            width: 100%;
+            font-weight: 600;
+        }
+
+        .btn-enter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(139, 69, 19, 0.4);
+        }
+
+        .btn-enter:disabled {
+            background: #999;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Main Site Layout */
+        #mainSite {
+            display: none;
+            min-height: 100vh;
+            background-color: #f5f1e8;
+            transition: filter 0.4s ease;
+        }
+
+        #mainSite.blurred {
+            filter: blur(5px) brightness(0.7);
+            pointer-events: none;
+        }
+
+        .site-header {
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .site-header h1 {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .user-info {
+            color: #fff;
+            font-size: 0.95em;
+            margin-top: 10px;
+        }
+
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        /* Sidebar Menu */
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: fit-content;
+            position: sticky;
+            top: 20px;
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+
+        .menu-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-item:hover {
+            background: #f5f1e8;
+            color: #8B4513;
+            padding-left: 25px;
+        }
+
+        .menu-item.active {
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            color: white;
+        }
+
+        /* Main Content Area */
+        .content-area {
+            flex: 1;
+        }
+
+        /* Products Grid */
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+            background: linear-gradient(135deg, #D2B48C 0%, #DEB887 100%);
+        }
+
+        .product-info {
+            padding: 15px;
+        }
+
+        .product-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .product-description {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            height: 40px;
+            overflow: hidden;
+        }
+
+        .product-price {
+            font-size: 1.3em;
+            color: #8B4513;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .btn-add {
+            width: 100%;
+            padding: 8px;
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-add:hover {
+            opacity: 0.9;
+        }
+
+        /* Reviews Section */
+        .reviews-container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .review-form {
+            background: #f5f1e8;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .form-group-review {
+            margin-bottom: 15px;
+        }
+
+        .form-group-review label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group-review input,
+        .form-group-review textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #D2691E;
+            border-radius: 5px;
+            font-size: 1em;
+            font-family: inherit;
+        }
+
+        .form-group-review textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group-review input:focus,
+        .form-group-review textarea:focus {
+            outline: none;
+            border-color: #8B4513;
+        }
+
+        .btn-submit-review {
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.3s;
+        }
+
+        .btn-submit-review:hover {
+            opacity: 0.9;
+        }
+
+        .reviews-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .review-item {
+            background: #f5f1e8;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #D2691E;
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .review-author {
+            font-weight: 600;
+            color: #8B4513;
+        }
+
+        .review-date {
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .review-rating {
+            color: #FFB900;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .review-text {
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-size: 1.1em;
+        }
+
+        /* Section Titles */
+        .section-title {
+            font-size: 2em;
+            color: #8B4513;
+            margin-bottom: 20px;
+            font-weight: 700;
+            border-bottom: 3px solid #D2691E;
+            padding-bottom: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
+
+            .products-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+
+            .welcome-container h1 {
+                font-size: 1.8em;
+            }
+        }
+
+        /* User Orders (mini cards) */
+        .user-orders {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .user-order-card {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.04);
+        }
+
+        .user-order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .order-badge {
+            background: #fff3cd;
+            color: #856404;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.9em;
+        }
+
+        .order-progress-mini {
+            height: 8px;
+            background: #f1f1f1;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .order-progress-mini > div {
+            height: 100%;
+            background: linear-gradient(90deg, #8B4513, #D2691E);
+            width: 40%;
+            transition: width 0.6s ease;
+        }
+
+        .order-actions { display: flex; gap: 8px; align-items: center; }
+
+        .collapse-all-btn { background: #6c757d; color: white; padding: 6px 10px; border-radius:6px; border:none; cursor:pointer; }
+        .expand-all-btn { background: #8B4513; color: white; padding: 6px 10px; border-radius:6px; border:none; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <!-- Modal Backdrop for Blurred Background -->
+    <div id="modalBackdrop" class="modal-backdrop"></div>
+
+    <!-- Pull to Refresh -->
+    <div id="pullRefresh">
+        <div class="refresh-content">
+            <div class="running-coffee">☕</div>
+            <div class="refresh-text">Refreshing...</div>
+        </div>
+    </div>
+
+    <!-- Welcome Screen -->
+    <div id="welcomeScreen">
+        <div class="language-selector">
+            <button class="lang-btn active" onclick="changeLanguage('en')">English</button>
+            <button class="lang-btn" onclick="changeLanguage('fr')">Français</button>
+            <button class="lang-btn" onclick="changeLanguage('ar')">العربية</button>
+        </div>
+        <div class="welcome-container">
+            <h1>☕ <span data-i18n="welcome_title">Welcome!</span></h1>
+            <p data-i18n="welcome_msg">Welcome to our coffee shop where coffee is your solution</p>
+            
+            <form id="welcomeForm" onsubmit="return enterSite(event)">
+                <div class="form-group">
+                    <label for="firstName" data-i18n="first_name">First Name *</label>
+                    <input type="text" id="firstName" required placeholder="Enter your first name">
+                </div>
+
+                <div class="form-group">
+                    <label for="lastName" data-i18n="last_name">Last Name *</label>
+                    <input type="text" id="lastName" required placeholder="Enter your last name">
+                </div>
+
+                <div id="idDisplay" class="id-display" style="display: none;">
+                    <span data-i18n="your_id">Your ID</span>: <span id="userId"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="tableSelect" data-i18n="select_table">Select Your Table *</label>
+                    <select id="tableSelect">
+                        <option value="">-- Choose a table --</option>
+                        <option value="Table 1">Table 1</option>
+                        <option value="Table 2">Table 2</option>
+                        <option value="Table 3">Table 3</option>
+                        <option value="Table 4">Table 4</option>
+                        <option value="Table 5">Table 5</option>
+                        <option value="Table 6">Table 6</option>
+                        <option value="Table 7">Table 7</option>
+                        <option value="Table 8">Table 8</option>
+                        <option value="Table 9">Table 9</option>
+                        <option value="Table 10">Table 10</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-enter" data-i18n="enter_btn">
+                    Enter the Site
+                    <img src="realistic-coffee-bean-transparent_34230-359.avif" 
+                     alt="" 
+                    style="width:20px; height:20px; margin-left:5px;">
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+
+    <!-- Main Site -->
+    <div id="mainSite">
+
+        <div class="site-header">
+            <h1 data-i18n="menu">Coffee Shop Menu</h1>
+            <div style="margin-top:8px; font-weight:600;">
+                <span data-i18n="welcome">Welcome</span>, <span id="displayName"></span> (ID: <span id="displayId"></span>) | <span data-i18n="table">Table</span>: <span id="displayTable"></span>
+            </div>
+        </div>
+
+        <div class="container">
+            <!-- Sidebar Menu -->
+            <div class="sidebar">
+                <div class="menu-item active" onclick="showCategory('coffees')">☕ Coffees</div>
+                <div class="menu-item" onclick="showCategory('teas')">🍵 Teas</div>
+                <div class="menu-item" onclick="showCategory('icedcoffees')">🧊 Iced Coffees</div>
+                <div class="menu-item" onclick="showCategory('milkshakes')">🥤 Milkshakes</div>
+                <div class="menu-item" onclick="showCategory('sweet')">🧇 Sweet Treats</div>
+                <div class="menu-item" onclick="showCategory('savory')">🍔 Savory Items</div>
+                <div class="menu-item" onclick="showCategory('dishes')">🍝 Dishes</div>
+                <div class="menu-item" onclick="showCategory('orders')">📦 <span data-i18n="orders">Orders</span></div>
+                <div class="menu-item" id="ownerDashboardMenu" onclick="showOwnerDashboard()" style="display: none;">📊 Owner Dashboard</div>
+                <div class="menu-item" onclick="showCategory('reviews')">✍️ Reviews & Comments</div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="content-area">
+                <!-- Coffees Section -->
+                <div id="coffees-section" class="section">
+                    <h2 class="section-title">☕ Premium Coffees</h2>
+                    <div class="products-grid" id="coffees-grid"></div>
+                </div>
+
+                <!-- Teas Section -->
+                <div id="teas-section" class="section" style="display: none;">
+                    <h2 class="section-title">🍵 Teas</h2>
+                    <div class="products-grid" id="teas-grid"></div>
+                </div>
+
+                <!-- Iced Coffees Section -->
+                <div id="icedcoffees-section" class="section" style="display: none;">
+                    <h2 class="section-title">🧊 Iced Coffees</h2>
+                    <div class="products-grid" id="icedcoffees-grid"></div>
+                </div>
+
+                <!-- Milkshakes Section -->
+                <div id="milkshakes-section" class="section" style="display: none;">
+                    <h2 class="section-title">🥤 Milkshakes</h2>
+                    <div class="products-grid" id="milkshakes-grid"></div>
+                </div>
+
+                <!-- Sweet Treats Section -->
+                <div id="sweet-section" class="section" style="display: none;">
+                    <h2 class="section-title">🧇 Sweet Treats</h2>
+                    <div class="products-grid" id="sweet-grid"></div>
+                </div>
+
+                <!-- Savory Items Section -->
+                <div id="savory-section" class="section" style="display: none;">
+                    <h2 class="section-title">🍔 Savory Items</h2>
+                    <div class="products-grid" id="savory-grid"></div>
+                </div>
+
+                <!-- Dishes Section -->
+                <div id="dishes-section" class="section" style="display: none;">
+                    <h2 class="section-title">🍝 Dishes</h2>
+                    <div class="products-grid" id="dishes-grid"></div>
+                </div>
+
+                <!-- Orders Section (confirmation + status) -->
+                <div id="orders-section" class="section" style="display: none;">
+                    <h2 class="section-title">📦 <span data-i18n="order_status">Order Status</span></h2>
+
+                    <!-- Confirmation View -->
+                    <div id="order-confirm" class="order-card" style="display: block;">
+                        <h3 data-i18n="confirm_order_title">Confirm Your Order</h3>
+                        <div class="order-summary" id="orderSummary">No items in your order yet.</div>
+                        <div class="order-note" data-i18n="confirm_order_desc">Please choose a payment method to continue.</div>
+
+                        <div class="payment-options" id="paymentOptions">
+                            <div class="payment-option" data-pay="paypal" onclick="selectPayment('paypal')">PayPal</div>
+                            <div class="payment-option" data-pay="card" onclick="selectPayment('card')">Credit Card</div>
+                            <div class="payment-option" data-pay="cash" onclick="selectPayment('cash')">Cash</div>
+                        </div>
+
+                        <div id="cardFields" style="display:none;">
+                            <div class="payment-field">
+                                <label data-i18n="card_number">Card Number</label>
+                                <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456">
+                            </div>
+                            <div style="display:flex; gap:10px">
+                                <div class="payment-field" style="flex:1">
+                                    <label data-i18n="card_expiry">Expiry</label>
+                                    <input type="text" id="cardExpiry" placeholder="MM/YY">
+                                </div>
+                                <div class="payment-field" style="flex:1">
+                                    <label data-i18n="card_cvv">CVV</label>
+                                    <input type="text" id="cardCvv" placeholder="123">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="paypalFields" style="display:none;">
+                            <div class="payment-field">
+                                <label for="paypalEmail">PayPal Email</label>
+                                <input type="email" id="paypalEmail" placeholder="your.email@paypal.com">
+                            </div>
+                            <div id="paypal-button-container" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <div style="margin-top:18px; text-align:right">
+                            <button class="btn-cancel" onclick="showCategory('coffees')" data-i18n="cancel_btn">Cancel</button>
+                            <button class="btn-confirm" onclick="confirmOrder()" data-i18n="confirm_btn">Confirm & Pay</button>
+                        </div>
+                    </div>
+
+                    <!-- Status View (hidden until confirmed) -->
+                    <div id="order-status" class="order-card" style="display: none; text-align:center;">
+                        <div class="running-coffee-order">☕</div>
+                        <h3 data-i18n="preparing">Your Order is Being Prepared...</h3>
+                        <p data-i18n="preparing_desc">Our talented baristas are crafting your perfect drink!</p>
+                        <div class="order-loading-bar">
+                            <div class="order-loading-progress" id="orderProgress" style="width:0%"></div>
+                        </div>
+                        <p class="order-note" id="orderStatusText">Processing payment...</p>
+                        <p style="margin-top: 15px; padding: 12px; background: #fff3cd; border-radius: 8px; color: #856404; font-weight: 600;">
+                            ⏱️ Estimated time: <span id="estimatedTimeDisplay">20</span> minutes
+                        </p>
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e6e6e6;">
+                            <p style="color: #666; margin-bottom: 15px; font-size: 0.95em;">Want to add more items while waiting?</p>
+                            <button onclick="showCategory('coffees'); showToast('Add more items to your order')" style="background: #8B4513; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-right: 10px;">
+                                ➕ Add More Items
+                            </button>
+                            <button onclick="document.getElementById('orders-section').style.display = 'none'; showToast('Browse the menu while waiting')" style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                                Browse Menu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                <!-- Reviews Section -->
+                <div id="reviews-section" class="section" style="display: none;">
+                    <h2 class="section-title">✍️ Reviews & Comments</h2>
+                    <div class="reviews-container">
+                        <div class="review-form">
+                            <h3 style="margin-bottom: 15px; color: #333;">Leave Your Review</h3>
+                            <form id="reviewForm" onsubmit="submitReview(event)">
+                                <div class="form-group-review">
+                                    <label for="reviewRating">Rating (1-5 stars) *</label>
+                                    <select id="reviewRating" required style="width: 100%; padding: 10px; border: 2px solid #D2691E; border-radius: 5px;">
+                                        <option value="">-- Select rating --</option>
+                                        <option value="1">⭐ (1 star)</option>
+                                        <option value="2">⭐⭐ (2 stars)</option>
+                                        <option value="3">⭐⭐⭐ (3 stars)</option>
+                                        <option value="4">⭐⭐⭐⭐ (4 stars)</option>
+                                        <option value="5">⭐⭐⭐⭐⭐ (5 stars)</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group-review">
+                                    <label for="reviewTitle">Review Title *</label>
+                                    <input type="text" id="reviewTitle" required placeholder="e.g., Amazing Coffee!">
+                                </div>
+
+                                <div class="form-group-review">
+                                    <label for="reviewText">Your Comment *</label>
+                                    <textarea id="reviewText" required placeholder="Share your experience..."></textarea>
+                                </div>
+
+                                <button type="submit" class="btn-submit-review">Submit Review</button>
+                            </form>
+                        </div>
+
+                        <div id="reviewsList" class="reviews-list">
+                            <div class="empty-message">No reviews yet. Be the first to leave a review!</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Owner Dashboard Section -->
+                <div id="owner-dashboard-section" class="section" style="display: none;">
+                    <h2 class="section-title">📊 Owner Dashboard - Orders Management</h2>
+                    <div style="overflow-x: auto; margin-bottom: 20px;">
+                        <table id="ordersTable" style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <thead style="background: #8B4513; color: white;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Order ID</th>
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Customer</th>
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Table</th>
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Items</th>
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Total</th>
+                                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Payment</th>
+                                    <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Est. Time (min)</th>
+                                    <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody">
+                                <tr>
+                                    <td colspan="8" style="padding: 20px; text-align: center; color: #999;">No orders yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <button onclick="logoutOwner()" style="background: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                            Logout
+                        </button>
+                    </div>
+                        <!-- Owner: Product availability controls -->
+                        <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06); margin-bottom:20px;">
+                            <h3 style="margin-bottom:10px; color:#333;">Product Availability</h3>
+                            <div id="owner-availability-list">Loading...</div>
+                        </div>
+
+                        <!-- All-Time Orders -->
+                        <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <h3 style="margin:0; color:#333;">All-Time Orders</h3>
+                                <div>
+                                    <button onclick="loadAllTimeOrders()" style="background:#8B4513;color:#fff;border:none;padding:8px 12px;border-radius:6px;margin-right:8px;">Refresh</button>
+                                    <button onclick="clearAllOrders()" style="background:#c82333;color:#fff;border:none;padding:8px 12px;border-radius:6px;">Clear All Orders</button>
+                                </div>
+                            </div>
+                            <div style="overflow-x:auto;">
+                                <table id="allTimeOrdersTable" style="width:100%; border-collapse:collapse;">
+                                    <thead style="background:#f3eadf; color:#333;">
+                                        <tr>
+                                            <th style="padding:8px; text-align:left;">Order ID</th>
+                                            <th style="padding:8px; text-align:left;">Customer</th>
+                                            <th style="padding:8px; text-align:left;">Table</th>
+                                            <th style="padding:8px; text-align:left;">Items</th>
+                                            <th style="padding:8px; text-align:left;">Total</th>
+                                            <th style="padding:8px; text-align:left;">Status</th>
+                                            <th style="padding:8px; text-align:left;">Placed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="allTimeOrdersBody">
+                                        <tr><td colspan="7" style="padding:12px; text-align:center; color:#666;">No orders history yet</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Runtime error overlay and diagnostics (added for debugging) ---
+        (function(){
+            console.log('Coffee app script loaded');
+
+            // capture console.error messages
+            try {
+                const origConsoleError = console.error.bind(console);
+                const errorBuffer = [];
+                console.error = function(...args) {
+                    try {
+                        errorBuffer.push({ t: Date.now(), args: args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))) });
+                        if (errorBuffer.length > 30) errorBuffer.shift();
+                        sessionStorage.setItem('coffee_last_errors', JSON.stringify(errorBuffer));
+                    } catch (e) {}
+                    origConsoleError(...args);
+                };
+            } catch (e) {}
+
+            // create overlay element
+            try {
+                const overlay = document.createElement('div');
+                overlay.id = 'jsErrorOverlay';
+                overlay.style.cssText = 'position:fixed; left:10px; right:10px; bottom:10px; max-height:40vh; overflow:auto; background:rgba(0,0,0,0.85); color:#fff; padding:12px; border-radius:8px; z-index:20000; display:none; font-family:monospace; font-size:13px;';
+                overlay.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><div style="font-weight:700;">JS Errors</div><div><button id="closeJsOverlay" style="background:#fff;color:#000;border:none;padding:4px 8px;border-radius:4px;cursor:pointer">Close</button></div></div><pre id="jsErrorOverlayContent" style="white-space:pre-wrap;margin-top:8px;"></pre>';
+                document.body.appendChild(overlay);
+                const closeBtn = document.getElementById('closeJsOverlay');
+                if (closeBtn) closeBtn.addEventListener('click', ()=> overlay.style.display='none');
+            } catch (e) { console.error('overlay create failed', e); }
+
+            function showErrorOverlay(msg) {
+                try {
+                    const overlay = document.getElementById('jsErrorOverlay');
+                    const content = document.getElementById('jsErrorOverlayContent');
+                    if (!overlay || !content) return;
+                    content.textContent = msg;
+                    overlay.style.display = 'block';
+                } catch (e) { console.error('showErrorOverlay error', e); }
+            }
+
+            window.addEventListener('error', function(ev) {
+                try {
+                    const msg = (ev && ev.error && ev.error.stack) ? ev.error.stack : (ev && ev.message) ? ev.message : JSON.stringify(ev);
+                    console.error('Uncaught error:', msg);
+                    showErrorOverlay('Uncaught error:\n' + msg);
+                } catch (e) {}
+            });
+
+            window.addEventListener('unhandledrejection', function(ev) {
+                try {
+                    const reason = ev && ev.reason ? (ev.reason.stack || JSON.stringify(ev.reason)) : String(ev);
+                    console.error('Unhandled rejection:', reason);
+                    showErrorOverlay('Unhandled rejection:\n' + reason);
+                } catch (e) {}
+            });
+        })();
+
+        // Language and Translation System
+        let currentLanguage = 'en';
+
+        const translations = {
+            en: {
+                welcome_title: 'Welcome!',
+                welcome_msg: 'Welcome to our coffee shop where coffee is your solution',
+                first_name: 'First Name *',
+                last_name: 'Last Name *',
+                your_id: 'Your ID',
+                select_table: 'Select Your Table *',
+                enter_btn: 'Enter the Site',
+                menu: 'Coffee Shop Menu',
+                welcome: 'Welcome',
+                table: 'Table',
+                orders: 'Orders',
+                reviews: 'Reviews & Comments',
+                order_status: 'Order Status',
+                preparing: 'Your Order is Being Prepared...',
+                preparing_desc: 'Our talented baristas are crafting your perfect drink!',
+                time_remaining: 'Estimated time: 3-5 minutes',
+                confirm_order_title: 'Confirm Your Order',
+                confirm_order_desc: 'Please choose a payment method to continue.',
+                payment_method: 'Payment Method',
+                pay_paypal: 'PayPal',
+                pay_card: 'Credit Card',
+                pay_cash: 'Cash',
+                card_number: 'Card Number',
+                card_expiry: 'Expiry',
+                card_cvv: 'CVV',
+                card_error_msg: 'Please provide valid card details.',
+                confirm_btn: 'Confirm & Pay',
+                cancel_btn: 'Cancel',
+                processing_payment: 'Processing payment...',
+                processing_paypal: 'Processing PayPal payment...',
+                awaiting_cash: 'Awaiting cash payment at pickup',
+                order_confirmed_msg: 'Order confirmed! Preparing your items.',
+                order_empty: 'No items in your order yet.',
+                total_label: 'Total',
+                new_order_btn: 'New Order',
+                added_to_cart: 'Added to your order'
+            },
+            fr: {
+                welcome_title: 'Bienvenue!',
+                welcome_msg: 'Bienvenue dans notre café où le café est votre solution',
+                first_name: 'Prénom *',
+                last_name: 'Nom *',
+                your_id: 'Votre ID',
+                select_table: 'Sélectionnez Votre Table *',
+                enter_btn: 'Entrer sur le Site',
+                menu: 'Menu du Café',
+                welcome: 'Bienvenue',
+                table: 'Table',
+                orders: 'Commandes',
+                reviews: 'Avis et Commentaires',
+                order_status: 'Statut de la Commande',
+                preparing: 'Votre Commande est en Préparation...',
+                preparing_desc: 'Nos baristas talentueux préparent votre boisson parfaite!',
+                time_remaining: 'Temps estimé: 3-5 minutes',
+                confirm_order_title: 'Confirmez Votre Commande',
+                confirm_order_desc: "Veuillez choisir un mode de paiement pour continuer.",
+                payment_method: 'Méthode de Paiement',
+                pay_paypal: 'PayPal',
+                pay_card: 'Carte de Crédit',
+                pay_cash: 'Espèces',
+                card_number: 'Numéro de Carte',
+                card_expiry: 'Date d\'expiration',
+                card_cvv: 'CVV',
+                card_error_msg: 'Veuillez fournir des détails de carte valides.',
+                confirm_btn: 'Confirmer & Payer',
+                cancel_btn: 'Annuler',
+                processing_payment: 'Traitement du paiement...',
+                processing_paypal: 'Traitement du paiement PayPal...',
+                awaiting_cash: 'En attente du paiement en espèces',
+                order_confirmed_msg: 'Commande confirmée ! Préparation en cours.',
+                order_empty: 'Aucun article dans votre commande.',
+                total_label: 'Total',
+                new_order_btn: 'Nouvelle commande',
+                added_to_cart: 'Ajouté à votre commande'
+            },
+            ar: {
+                welcome_title: 'أهلا وسهلا!',
+                welcome_msg: 'أهلا وسهلا بك في مقهانا حيث القهوة هي حلك',
+                first_name: 'الاسم الأول *',
+                last_name: 'اسم العائلة *',
+                your_id: 'معرفك',
+                select_table: 'اختر طاولتك *',
+                enter_btn: 'ادخل إلى الموقع',
+                menu: 'قائمة المقهى',
+                welcome: 'أهلا وسهلا',
+                table: 'الطاولة',
+                orders: 'الطلبات',
+                reviews: 'التعليقات والآراء',
+                order_status: 'حالة الطلب',
+                preparing: 'يتم تحضير طلبك...',
+                preparing_desc: 'يقوم باريستا الموهوبون لدينا بإعداد المشروب المثالي لك!',
+                time_remaining: 'الوقت المتوقع: 3-5 دقائق',
+                confirm_order_title: 'تأكيد الطلب',
+                confirm_order_desc: 'الرجاء اختيار طريقة الدفع للمتابعة.',
+                payment_method: 'طريقة الدفع',
+                pay_paypal: 'باي بال',
+                pay_card: 'بطاقة ائتمان',
+                pay_cash: 'نقداً',
+                card_number: 'رقم البطاقة',
+                card_expiry: 'تاريخ الانتهاء',
+                card_cvv: 'رمز CVV',
+                card_error_msg: 'يرجى تقديم بيانات بطاقة صحيحة.',
+                confirm_btn: 'تأكيد ودفع',
+                cancel_btn: 'إلغاء',
+                processing_payment: 'جارٍ معالجة الدفع...',
+                processing_paypal: 'جارٍ معالجة دفع باي بال...',
+                awaiting_cash: 'بانتظار الدفع نقداً عند الاستلام',
+                order_confirmed_msg: 'تم تأكيد الطلب! جاري تحضير طلبك.',
+                order_empty: 'لا توجد عناصر في طلبك.',
+                total_label: 'المجموع',
+                new_order_btn: 'طلب جديد',
+                added_to_cart: 'أضيف إلى طلبك'
+            }
+        };
+
+        function changeLanguage(lang) {
+            console.log('Language changed to:', lang);
+            currentLanguage = lang;
+            localStorage.setItem('siteLanguage', lang);
+
+            // Update active button
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Find and mark the correct button as active
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                const btnText = btn.textContent.trim();
+                if ((lang === 'en' && btnText === 'English') ||
+                    (lang === 'fr' && btnText === 'Français') ||
+                    (lang === 'ar' && btnText === 'العربية')) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Update all translatable elements
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang] && translations[lang][key]) {
+                    el.textContent = translations[lang][key];
+                }
+            });
+
+            // Update HTML direction for Arabic
+            if (lang === 'ar') {
+                document.documentElement.lang = 'ar';
+                document.documentElement.dir = 'rtl';
+                document.body.style.direction = 'rtl';
+            } else {
+                document.documentElement.lang = lang;
+                document.documentElement.dir = 'ltr';
+                document.body.style.direction = 'ltr';
+            }
+        }
+
+        // Initialize language on page load
+        function initializeLanguage() {
+            const savedLang = localStorage.getItem('siteLanguage') || 'en';
+            currentLanguage = savedLang;
+            
+            // Update all translatable elements
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[savedLang] && translations[savedLang][key]) {
+                    el.textContent = translations[savedLang][key];
+                }
+            });
+            
+            // Update active language button
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                const btnText = btn.textContent.trim();
+                if ((savedLang === 'en' && btnText === 'English') ||
+                    (savedLang === 'fr' && btnText === 'Français') ||
+                    (savedLang === 'ar' && btnText === 'العربية')) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Set HTML direction
+            if (savedLang === 'ar') {
+                document.documentElement.dir = 'rtl';
+                document.body.style.direction = 'rtl';
+            } else {
+                document.documentElement.dir = 'ltr';
+                document.body.style.direction = 'ltr';
+            }
+        }
+
+        // Page visibility (kept for future use)
+        let pageVisible = true;
+
+        document.addEventListener('visibilitychange', function() {
+            pageVisible = !document.hidden;
+        });
+
+        // NOTE: We intentionally do NOT clear `sessionStorage` or `session`-scoped
+        // items on `beforeunload`/`pagehide`. We store `userInfo` and
+        // `ownerSession` in `sessionStorage` so they persist across refresh
+        // but are cleared automatically when the tab/window is closed.
+
+        // Run initialization when DOM is ready
+        function onDomReadyInit() {
+            initializeLanguage();
+
+            // Run login gating: show welcome on first launch unless session exists
+            try {
+                checkLoginStatus();
+            } catch (e) { console.warn('init visibility adjust failed', e); }
+
+            // Load cart from sessionStorage (preserve across refresh but clear on close)
+            try {
+                const savedCart = sessionStorage.getItem('coffeeCart');
+                if (savedCart) cart = JSON.parse(savedCart);
+            } catch (e) {}
+            updateOrderSummary();
+
+            // Restore user display fields if available (works if sessionStorage still contains userInfo)
+            try {
+                const user = JSON.parse(sessionStorage.getItem('userInfo') || '{}');
+                if (user && user.id) {
+                    const _dn = document.getElementById('displayName');
+                    if (_dn) _dn.textContent = (user.name || '') + ' ' + (user.lastName || '');
+                    const _did = document.getElementById('displayId');
+                    if (_did) _did.textContent = user.id || '';
+                    const _dt = document.getElementById('displayTable');
+                    if (_dt) _dt.textContent = user.table || '';
+                }
+            } catch (e) {}
+
+            // Initialize main UI pieces
+            initializeProducts();
+            loadReviews();
+        }
+
+        // Check if user is already logged in
+        function checkLoginStatus() {
+            const mainSite = document.getElementById('mainSite');
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            // Check if owner session exists (only if explicitly logged in as owner)
+            if (sessionStorage.getItem('ownerSession') === 'true') {
+
+                if (mainSite) mainSite.style.display = 'block';
+                if (mainSite) mainSite.classList.remove('blurred');
+                if (welcomeScreen) welcomeScreen.style.display = 'none';
+                const _back = document.getElementById('modalBackdrop');
+                if (_back) _back.classList.remove('active');
+                showOwnerDashboard();
+                return;
+            }
+            const userInfo = sessionStorage.getItem('userInfo');
+            if (userInfo) {
+                // User is logged in, show main site only
+                const user = JSON.parse(userInfo);
+                if (welcomeScreen) welcomeScreen.style.display = 'none';
+                if (mainSite) mainSite.style.display = 'block';
+                if (mainSite) mainSite.classList.remove('blurred');
+                const _back2 = document.getElementById('modalBackdrop');
+                if (_back2) _back2.classList.remove('active');
+                // Hide owner dashboard menu for customers
+                const dashboardSection = document.getElementById('owner-dashboard-section');
+                if (dashboardSection) dashboardSection.style.display = 'none';
+                // Update user display info
+                const __dn = document.getElementById('displayName');
+                if (__dn) __dn.textContent = (user.name || '') + ' ' + (user.lastName || '');
+                const __did = document.getElementById('displayId');
+                if (__did) __did.textContent = user.id || '';
+                const __dt = document.getElementById('displayTable');
+                if (__dt) __dt.textContent = user.table || '';
+                // Initialize products
+                initializeProducts();
+                loadReviews();
+            } else {
+                // User is not logged in, show welcome only
+                if (mainSite) mainSite.style.display = 'none';
+                if (welcomeScreen) welcomeScreen.style.display = 'flex';
+                if (welcomeScreen) welcomeScreen.classList.add('show');
+                const _back3 = document.getElementById('modalBackdrop');
+                if (_back3) _back3.classList.add('active');
+            }
+        }
+
+        function enterSite(event) {
+            // Support cases where `event` may be undefined (inline handlers or Enter key)
+            try {
+                if (event && typeof event.preventDefault === 'function') event.preventDefault();
+            } catch (e) {
+                // ignore
+            }
+            const fnEl = document.getElementById('firstName');
+            const lnEl = document.getElementById('lastName');
+            const tsEl = document.getElementById('tableSelect');
+            if (!fnEl || !lnEl || !tsEl) return false; // Guard: ensure elements exist
+            const firstName = fnEl.value.trim();
+            const lastName = lnEl.value.trim();
+            const selectedTable = tsEl.value;
+
+            // Owner credentials
+            const OWNER_FIRST_NAME = "Owner";
+            const OWNER_LAST_NAME = "Admin";
+
+            // Owner login: only Owner/Admin, table selection not required
+            if (firstName === OWNER_FIRST_NAME && lastName === OWNER_LAST_NAME) {
+                sessionStorage.setItem('ownerSession', 'true');
+                const mainSite = document.getElementById('mainSite');
+                const welcomeScreen = document.getElementById('welcomeScreen');
+                if (welcomeScreen) welcomeScreen.style.display = 'none';
+                if (mainSite) {
+                    mainSite.style.display = 'block';
+                    mainSite.classList.remove('blurred');
+                }
+                const _mb = document.getElementById('modalBackdrop');
+                if (_mb) _mb.classList.remove('active');
+                // Update display info
+                const ___dn = document.getElementById('displayName');
+                if (___dn) ___dn.textContent = 'Owner Dashboard';
+                const ___did = document.getElementById('displayId');
+                if (___did) ___did.textContent = 'ADMIN-001';
+                const ___dt = document.getElementById('displayTable');
+                if (___dt) ___dt.textContent = 'N/A';
+                // Show coffees by default for owner; reveal owner menu but do not open dashboard immediately
+                const ownerMenu = document.getElementById('ownerDashboardMenu');
+                if (ownerMenu) ownerMenu.style.display = 'block';
+                showCategory('coffees');
+                return false;
+            }
+
+            // Client login: table selection is required
+            if (firstName !== OWNER_FIRST_NAME || lastName !== OWNER_LAST_NAME) {
+                if (!selectedTable) {
+                    showValidationError('Table Required', 'Please select your table to continue.');
+                    return false;
+                }
+            }
+
+            // Regular customer login
+            const id = generateId();
+            userInfo = {
+                name: firstName,
+                lastName: lastName,
+                id: id,
+                table: selectedTable
+            };
+            sessionStorage.setItem('userInfo', JSON.stringify(userInfo));
+            // Update display info (guard elements)
+            const ___dn = document.getElementById('displayName');
+            if (___dn) ___dn.textContent = firstName + ' ' + lastName;
+            const ___did = document.getElementById('displayId');
+            if (___did) ___did.textContent = id;
+            const ___dt = document.getElementById('displayTable');
+            if (___dt) ___dt.textContent = selectedTable;
+            // Hide welcome screen and show main site
+            const mainSite = document.getElementById('mainSite');
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            if (welcomeScreen) welcomeScreen.style.display = 'none';
+            if (mainSite) {
+                mainSite.style.display = 'block';
+                mainSite.classList.remove('blurred');
+            }
+            const _mb = document.getElementById('modalBackdrop');
+            if (_mb) _mb.classList.remove('active');
+            // Initialize products
+            initializeProducts();
+            // Load reviews from localStorage
+            loadReviews();
+            return false;
+        }
+
+        function backToWelcome() {
+            // Hide main site, show welcome screen only
+            try {
+                const mainSite = document.getElementById('mainSite');
+                if (mainSite) mainSite.style.display = 'none';
+                const welcome = document.getElementById('welcomeScreen');
+                if (welcome) {
+                    welcome.style.display = 'flex';
+                    welcome.classList.add('show');
+                }
+                sessionStorage.removeItem('ownerSession');
+                const _mb2 = document.getElementById('modalBackdrop');
+                if (_mb2) _mb2.classList.add('active');
+            } catch (e) { console.error('backToWelcome error', e); }
+        }
+        
+
+        // Toggle expand/collapse for a single order card
+        function toggleOrderExpand(orderId) {
+            const el = document.getElementById('order-expanded-' + orderId);
+            if (!el) return;
+            el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+        }
+
+        function expandAllOrders() {
+            document.querySelectorAll('[id^="order-expanded-"]').forEach(el => el.style.display = 'block');
+        }
+
+        function collapseAllOrders() {
+            document.querySelectorAll('[id^="order-expanded-"]').forEach(el => el.style.display = 'none');
+        }
+
+        // Helper to format timestamps consistently
+        function formatTimestamp(ts) {
+            if (!ts) return '';
+            try {
+                const d = new Date(ts);
+                if (isNaN(d.getTime())) return ts;
+                return d.toLocaleString();
+            } catch (e) { return ts; }
+        }
+
+        // Show details by id (reads order object from storage)
+        function showOrderDetailsModalFromId(orderId) {
+            const all = (JSON.parse(localStorage.getItem('coffeeOrders') || '[]')).concat(JSON.parse(localStorage.getItem('completedOrders') || '[]'));
+            const ord = all.find(o => o.id === orderId);
+            if (ord) showOrderDetailsModal(ord);
+        }
+        
+
+        function loadOrdersForOwner() {
+            const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+            const tbody = document.getElementById('ordersTableBody');
+
+            if (!tbody) return;
+            if (orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="padding: 20px; text-align: center; color: #999;">No orders yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            orders.forEach((order, index) => {
+                const itemsList = (order.items || []).map(item => `${item.name} x${item.qty}`).join(', ');
+                const estimatedTime = order.estimatedTime || 20;
+                const customerDisplay = `${order.customerName || ''}<br><small style="color: #666;">(ID: ${order.customerId || ''})</small>`;
+                const tableDisplay = order.table || '';
+
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid #ddd';
+                row.innerHTML = `
+                    <td style="padding: 12px; border: 1px solid #ddd;">#${order.id}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">${customerDisplay}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; text-align: center; font-weight: 600;">${tableDisplay}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; font-size: 0.9em;">${itemsList}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd; font-weight: 600;">$${(order.total || 0).toFixed(2)}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">${order.paymentMethod || ''}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">
+                        <input type="number" min="5" max="120" value="${estimatedTime}"
+                               onchange="updateEstimatedTime(${index}, this.value)"
+                               style="width: 60px; padding: 5px; border: 1px solid #D2691E; border-radius: 4px;">
+                    </td>
+                    <td style="padding: 12px; border: 1px solid #ddd; text-align: center;">
+                        <button onclick="completeOrder(${index})" style="background: #27ae60; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; margin-right:8px;">Complete</button>
+                        <button onclick="cancelOrder(${index})" style="background: #dc3545; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancel</button>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // Owner: Cancel order
+        function cancelOrder(index) {
+            const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+            const order = orders[index];
+            if (!order) return;
+            showConfirmationModal(
+                'Cancel Order?',
+                `Are you sure you want to cancel order #${order.id} for ${order.customerName || ''}?`,
+                () => {
+                    orders.splice(index, 1);
+                    localStorage.setItem('coffeeOrders', JSON.stringify(orders));
+                    try { if (bc) bc.postMessage({ type: 'order_cancelled', orderId: order.id }); } catch (e) {}
+                    showToast('Order cancelled');
+                    loadOrdersForOwner();
+                    loadAllTimeOrders();
+                }
+            );
+        }
+
+        // Owner: Update estimated time for an order
+        function updateEstimatedTime(index, newTime) {
+            try {
+                const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+                const order = orders[index];
+                if (!order) return;
+                order.estimatedTime = Number(newTime) || order.estimatedTime || 20;
+                localStorage.setItem('coffeeOrders', JSON.stringify(orders));
+                try { if (bc) bc.postMessage({ type: 'order_updated', orderId: order.id }); } catch (e) {}
+                showToast('Estimated time updated');
+                // Refresh views
+                try { loadOrdersForOwner(); } catch (e) {}
+                try { renderUserOrdersList(); } catch (e) {}
+            } catch (e) { console.warn('updateEstimatedTime error', e); }
+        }
+
+        // Owner: Mark an order as completed
+        function completeOrder(index) {
+            try {
+                const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+                const order = orders[index];
+                if (!order) return;
+                showConfirmationModal(
+                    'Mark as Completed',
+                    `Mark order #${order.id} as completed?`,
+                    () => {
+                        // Remove from pending
+                        orders.splice(index, 1);
+                        localStorage.setItem('coffeeOrders', JSON.stringify(orders));
+
+                        // Add to completed orders
+                        const completed = JSON.parse(localStorage.getItem('completedOrders') || '[]');
+                        order.status = 'completed';
+                        order.completedAt = new Date().toLocaleString();
+                        completed.push(order);
+                        localStorage.setItem('completedOrders', JSON.stringify(completed));
+
+                        try { if (bc) bc.postMessage({ type: 'order_completed', orderId: order.id, order: order }); } catch (e) {}
+                        showToast('Order marked as completed');
+                        try { loadOrdersForOwner(); } catch (e) {}
+                        try { loadAllTimeOrders(); } catch (e) {}
+                        try { renderUserOrdersList(); } catch (e) {}
+                    }
+                );
+            } catch (e) { console.warn('completeOrder error', e); }
+        }
+
+        // Load all-time orders (pending + completed)
+        function loadAllTimeOrders() {
+            const pending = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+            const completed = JSON.parse(localStorage.getItem('completedOrders') || '[]');
+            const all = pending.concat(completed || []);
+            const tbody = document.getElementById('allTimeOrdersBody');
+            if (!tbody) return;
+            if (!all || all.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:12px; text-align:center; color:#666;">No orders history yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            all.forEach(order => {
+                const itemsList = (order.items || []).map(i => `${i.name} x${i.qty}`).join(', ');
+                const placed = order.timestamp ? new Date(order.timestamp).toLocaleString() : (order.createdAt || '');
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid #eee';
+                row.innerHTML = `
+                    <td style="padding:8px;">#${order.id}</td>
+                    <td style="padding:8px;">${order.customerName || ''}</td>
+                    <td style="padding:8px;">${order.table || ''}</td>
+                    <td style="padding:8px;">${itemsList}</td>
+                    <td style="padding:8px;">$${(order.total || 0).toFixed(2)}</td>
+                    <td style="padding:8px;">${order.status || 'pending'}</td>
+                    <td style="padding:8px;">${placed}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Clear all orders history (with confirmation)
+        function clearAllOrders() {
+            showConfirmationModal('Clear All Orders', 'This will remove ALL pending and completed orders. Are you sure?', () => {
+                localStorage.removeItem('coffeeOrders');
+                localStorage.removeItem('completedOrders');
+                loadOrdersForOwner();
+                loadAllTimeOrders();
+                showToast('All orders cleared');
+            });
+        }
+
+        // Owner: Product Availability Controls (global)
+        function renderProductAvailabilityForOwner() {
+            const container = document.getElementById('owner-availability-list');
+            if (!container) return;
+            let availability = {};
+            try { availability = JSON.parse(localStorage.getItem('productAvailability') || '{}'); } catch (e) { availability = {}; }
+            let html = '<table style="width:100%;border-collapse:collapse;">';
+            html += '<tr style="background:#f5f1e8;"><th style="text-align:left;padding:8px;">Product</th><th style="text-align:center;padding:8px;">Available</th></tr>';
+            Object.keys(products).forEach(category => {
+                products[category].forEach(product => {
+                    const checked = availability[product.id] !== false ? 'checked' : '';
+                    html += '<tr><td style="padding:8px;">' + product.name + '</td><td style="text-align:center;"><input type="checkbox" data-pid="' + product.id + '" ' + checked + ' onchange="toggleProductAvailability(' + product.id + ', this.checked)"></td></tr>';
+                });
+            });
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        function toggleProductAvailability(productId, isAvailable) {
+            let availability = {};
+            try { availability = JSON.parse(localStorage.getItem('productAvailability') || '{}'); } catch (e) { availability = {}; }
+            availability[productId] = !!isAvailable;
+            localStorage.setItem('productAvailability', JSON.stringify(availability));
+            showToast('Product availability updated');
+            // Refresh product grids so customers see availability changes immediately
+            try { initializeProducts(); } catch (e) {}
+            try { renderProductAvailabilityForOwner(); } catch (e) {}
+        }
+
+        function logoutOwner() {
+            sessionStorage.removeItem('ownerSession');
+            const main = document.getElementById('mainSite');
+            if (main) main.style.display = 'none';
+            const welcome = document.getElementById('welcomeScreen');
+            if (welcome) {
+                welcome.style.display = 'flex';
+                welcome.classList.add('show');
+            }
+            const backdrop = document.getElementById('modalBackdrop');
+            if (backdrop) backdrop.classList.add('active');
+        }
+
+        function showOwnerDashboard() {
+            // Hide all main content sections
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(sec => sec.style.display = 'none');
+            // Show only the owner dashboard section
+            const dashboardSection = document.getElementById('owner-dashboard-section');
+            if (dashboardSection) dashboardSection.style.display = 'block';
+            // Show dashboard menu item for owner
+            const ownerMenu = document.getElementById('ownerDashboardMenu');
+            if (ownerMenu) ownerMenu.style.display = 'block';
+            loadOrdersForOwner();
+            renderProductAvailabilityForOwner();
+            loadAllTimeOrders();
+            // Scroll dashboard to top so tables are visible immediately
+            try { window.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0,0); }
+            // Focus first table for keyboard users
+            const firstTable = document.getElementById('ordersTable');
+            if (firstTable) firstTable.focus && firstTable.focus();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', onDomReadyInit);
+        } else {
+            onDomReadyInit();
+        }
+
+        // Pull to Refresh functionality
+        let startY = 0;
+        let currentY = 0;
+        let isRefreshing = false;
+
+        document.addEventListener('touchstart', function(e) {
+            if (window.scrollY === 0) {
+                startY = e.touches[0].clientY;
+            }
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (window.scrollY === 0 && startY > 0) {
+                currentY = e.touches[0].clientY;
+                const pullDistance = currentY - startY;
+
+                if (pullDistance > 0 && !isRefreshing) {
+                    const pullRefresh = document.getElementById('pullRefresh');
+                    const pullPercent = Math.min(pullDistance / 80, 1);
+                    pullRefresh.style.transform = `translateY(${pullDistance - 80}px)`;
+
+                    if (pullDistance > 80) {
+                        pullRefresh.classList.add('active');
+                    } else {
+                        pullRefresh.classList.remove('active');
+                    }
+                }
+            }
+
+            // (owner action handlers removed from touchmove to global scope)
+        });
+
+        document.addEventListener('touchend', function(e) {
+            if (currentY - startY > 80 && !isRefreshing) {
+                isRefreshing = true;
+                const pullRefresh = document.getElementById('pullRefresh');
+                pullRefresh.classList.add('active');
+                pullRefresh.style.transform = 'translateY(0)';
+
+                // Simulate refresh without reloading page (preserve session)
+                setTimeout(function() {
+                    simulateRefresh();
+                }, 1200);
+            } else {
+                const pullRefresh = document.getElementById('pullRefresh');
+                pullRefresh.classList.remove('active');
+                pullRefresh.style.transform = 'translateY(-100%)';
+            }
+            startY = 0;
+            currentY = 0;
+        });
+
+        function simulateRefresh() {
+            const pullRefresh = document.getElementById('pullRefresh');
+            // keep visible briefly then hide
+            setTimeout(() => {
+                if (pullRefresh) {
+                    pullRefresh.classList.remove('active');
+                    pullRefresh.style.transform = 'translateY(-100%)';
+                }
+                // re-initialize dynamic content
+                try {
+                    initializeProducts();
+                    displayReviews();
+                } catch (e) {
+                    console.warn('simulateRefresh error', e);
+                }
+                isRefreshing = false;
+            }, 600);
+        }
+
+        // Product Data
+        const products = {
+            coffees: [
+                { id: 1, name: 'Espresso', description: 'Strong and bold coffee shot', price: '$2.50', image: 'https://images.unsplash.com/photo-1514432324607-2e467f4af445?w=400&h=400&fit=crop' },
+                { id: 2, name: 'Americano', description: 'Espresso with hot water', price: '$3.00', image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=400&h=400&fit=crop' },
+                { id: 3, name: 'Latte', description: 'Espresso with steamed milk and foam', price: '$3.50', image: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&h=400&fit=crop' },
+                { id: 4, name: 'Cappuccino', description: 'Equal parts espresso, milk, and foam', price: '$3.50', image: 'https://images.unsplash.com/photo-1495521821757-a1efb6729352?w=400&h=400&fit=crop' },
+                { id: 5, name: 'Macchiato', description: 'Espresso topped with a dollop of foam', price: '$3.25', image: 'https://images.unsplash.com/photo-1578769739873-ad30d428f27e?w=400&h=400&fit=crop' },
+                { id: 6, name: 'Flat White', description: 'Espresso with silky steamed milk', price: '$3.75', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=400&fit=crop' },
+                { id: 7, name: 'Mocha', description: 'Espresso, steamed milk, and chocolate', price: '$4.00', image: 'https://images.unsplash.com/photo-1578269175716-68a143fc7c4d?w=400&h=400&fit=crop' },
+                { id: 8, name: 'Irish Coffee', description: 'Coffee with whiskey, sugar, and cream', price: '$5.50', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop' },
+            ],
+            teas: [
+                { id: 9, name: 'Black Tea', description: 'Classic black tea with hot water', price: '$2.50', image: 'https://images.unsplash.com/photo-1597318066214-44ad49f99fcf?w=400&h=400&fit=crop' },
+                { id: 10, name: 'Green Tea', description: 'Refreshing green tea', price: '$2.50', image: 'https://images.unsplash.com/photo-1597318006849-7f14a78bcd4d?w=400&h=400&fit=crop' },
+                { id: 11, name: 'Chamomile Tea', description: 'Relaxing chamomile blend', price: '$2.75', image: 'https://images.unsplash.com/photo-1597318031518-03ffbd7d4f1d?w=400&h=400&fit=crop' },
+                { id: 12, name: 'Oolong Tea', description: 'Semi-oxidized traditional tea', price: '$3.00', image: 'https://images.unsplash.com/photo-1597318006849-7f14a78bcd4d?w=400&h=400&fit=crop' },
+                { id: 13, name: 'Herbal Tea', description: 'Mixed herbal infusion', price: '$2.75', image: 'https://images.unsplash.com/photo-1583899285763-bda8f3c934a6?w=400&h=400&fit=crop' },
+                { id: 14, name: 'English Breakfast Tea', description: 'Strong blend of black teas', price: '$2.50', image: 'https://images.unsplash.com/photo-1597318066214-44ad49f99fcf?w=400&h=400&fit=crop' },
+            ],
+            icedcoffees: [
+                { id: 15, name: 'Iced Americano', description: 'Chilled Americano with ice', price: '$3.50', image: 'https://images.unsplash.com/photo-1517668808822-9ebb02ae2a0e?w=400&h=400&fit=crop' },
+                { id: 16, name: 'Iced Latte', description: 'Cold latte with ice and milk', price: '$4.00', image: 'https://images.unsplash.com/photo-1517668808822-9ebb02ae2a0e?w=400&h=400&fit=crop' },
+                { id: 17, name: 'Iced Cappuccino', description: 'Chilled cappuccino with ice', price: '$4.00', image: 'https://images.unsplash.com/photo-1517668808822-9ebb02ae2a0e?w=400&h=400&fit=crop' },
+                { id: 18, name: 'Iced Mocha', description: 'Cold mocha with chocolate', price: '$4.50', image: 'https://images.unsplash.com/photo-1517668808822-9ebb02ae2a0e?w=400&h=400&fit=crop' },
+                { id: 19, name: 'Affogato', description: 'Vanilla ice cream with hot espresso', price: '$4.50', image: 'https://images.unsplash.com/photo-1563990486-24fb61a1e3a7?w=400&h=400&fit=crop' },
+                { id: 20, name: 'Cold Brew', description: 'Smooth and refreshing cold brew', price: '$3.75', image: 'https://images.unsplash.com/photo-1517668808822-9ebb02ae2a0e?w=400&h=400&fit=crop' },
+            ],
+            milkshakes: [
+                { id: 21, name: 'Vanilla Shake', description: 'Classic vanilla milkshake', price: '$4.00', image: 'https://images.unsplash.com/photo-1563805042-7684c019e157?w=400&h=400&fit=crop' },
+                { id: 22, name: 'Chocolate Shake', description: 'Rich chocolate milkshake', price: '$4.00', image: 'https://images.unsplash.com/photo-1553530889-e6cf4d692b1b?w=400&h=400&fit=crop' },
+                { id: 23, name: 'Strawberry Shake', description: 'Fresh strawberry milkshake', price: '$4.25', image: 'https://images.unsplash.com/photo-1579954587487-54f4b4c66d6f?w=400&h=400&fit=crop' },
+                { id: 24, name: 'Banana Shake', description: 'Creamy banana milkshake', price: '$4.00', image: 'https://images.unsplash.com/photo-1557802260-361732146786?w=400&h=400&fit=crop' },
+                { id: 25, name: 'Coffee Shake', description: 'Coffee flavored milkshake', price: '$4.50', image: 'https://images.unsplash.com/photo-1553530889-e6cf4d692b1b?w=400&h=400&fit=crop' },
+                { id: 26, name: 'Cookies & Cream', description: 'Milkshake with cookie bits', price: '$4.75', image: 'https://images.unsplash.com/photo-1568367641872-f957c0f3a1e8?w=400&h=400&fit=crop' },
+            ],
+            sweet: [
+                { id: 27, name: 'Crepes with Nutella', description: 'Thin crepes with chocolate spread', price: '$5.00', image: 'https://images.unsplash.com/photo-1567327613485-f89355efc581?w=400&h=400&fit=crop' },
+                { id: 28, name: 'Waffles with Syrup', description: 'Crispy waffles with maple syrup', price: '$5.50', image: 'https://images.unsplash.com/photo-1567327613485-f89355efc581?w=400&h=400&fit=crop' },
+                { id: 29, name: 'Chocolate Pancakes', description: 'Fluffy pancakes with chocolate chips', price: '$5.00', image: 'https://images.unsplash.com/photo-1541519227354-08fa5d50c44d?w=400&h=400&fit=crop' },
+                { id: 30, name: 'Strawberry Crepes', description: 'Crepes filled with fresh strawberries', price: '$5.75', image: 'https://images.unsplash.com/photo-1567327613485-f89355efc581?w=400&h=400&fit=crop' },
+                { id: 31, name: 'Belgian Waffles', description: 'Premium Belgian waffles with toppings', price: '$6.00', image: 'https://images.unsplash.com/photo-1562227843-f58f07332e22?w=400&h=400&fit=crop' },
+                { id: 32, name: 'Blueberry Pancakes', description: 'Pancakes with fresh blueberries', price: '$5.25', image: 'https://images.unsplash.com/photo-1541519227354-08fa5d50c44d?w=400&h=400&fit=crop' },
+            ],
+            savory: [
+                { id: 33, name: 'Ham & Cheese Crepe', description: 'Savory crepe with ham and cheese', price: '$6.00', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&h=400&fit=crop' },
+                { id: 34, name: 'Cheese & Veggie Crepe', description: 'Crepe with vegetables and cheese', price: '$5.75', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&h=400&fit=crop' },
+                { id: 35, name: 'Chicken Waffle', description: 'Waffle with grilled chicken', price: '$7.00', image: 'https://images.unsplash.com/photo-1562227843-f58f07332e22?w=400&h=400&fit=crop' },
+                { id: 36, name: 'Classic Sandwich', description: 'Bread with assorted meats and cheese', price: '$6.50', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop' },
+                { id: 37, name: 'Turkey Sandwich', description: 'Fresh turkey with vegetables', price: '$7.00', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop' },
+                { id: 38, name: 'Beef Burger', description: 'Juicy beef burger with toppings', price: '$7.50', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=400&fit=crop' },
+                { id: 39, name: 'Chicken Burger', description: 'Crispy chicken burger', price: '$7.00', image: 'https://images.unsplash.com/photo-1562547256-f8c5f0f9acd8?w=400&h=400&fit=crop' },
+                { id: 40, name: 'Veggie Burger', description: 'Plant-based veggie burger', price: '$6.75', image: 'https://images.unsplash.com/photo-1585238341710-4913dfb3d5da?w=400&h=400&fit=crop' },
+            ],
+            dishes: [
+                { id: 41, name: 'Spaghetti Carbonara', description: 'Classic Italian pasta with cream and bacon', price: '$9.00', image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=400&fit=crop' },
+                { id: 42, name: 'Penne Arrabbiata', description: 'Spicy tomato-based pasta', price: '$8.50', image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=400&fit=crop' },
+                { id: 43, name: 'Fettuccine Alfredo', description: 'Creamy pasta with parmesan', price: '$9.50', image: 'https://images.unsplash.com/photo-1572695157365-12ec42b63641?w=400&h=400&fit=crop' },
+                { id: 44, name: 'Lasagna', description: 'Layered pasta with meat sauce', price: '$10.00', image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=400&fit=crop' },
+                { id: 45, name: 'Grilled Chicken Plate', description: 'Juicy grilled chicken with vegetables', price: '$10.50', image: 'https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=400&h=400&fit=crop' },
+                { id: 46, name: 'Salmon Fillet', description: 'Fresh salmon with herbs and lemon', price: '$12.00', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop' },
+                { id: 47, name: 'Caesar Salad', description: 'Fresh salad with parmesan and croutons', price: '$8.00', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop' },
+                { id: 48, name: 'Mushroom Risotto', description: 'Creamy risotto with mushrooms', price: '$9.00', image: 'https://images.unsplash.com/photo-1476124369162-f4978f58a68b?w=400&h=400&fit=crop' },
+            ]
+        };
+
+        let reviews = [];
+        let userInfo = { name: '', lastName: '', id: '', table: '' };
+        let cart = []; // simple cart storing added products
+        let orderingLocked = false; // when true, prevent add-to-cart actions
+
+        // Generate unique ID
+        function generateId() {
+            return 'CFS-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        }
+
+        // (customer-enter removed) The welcome form has been removed; use sessionStorage or guest flow instead.
+
+        // Initialize Products Grid
+        function initializeProducts() {
+            Object.keys(products).forEach(category => {
+                const gridId = category + '-grid';
+                const grid = document.getElementById(gridId);
+                if (grid) {
+                    // Respect product availability (default: available)
+                    let availability = {};
+                    try { availability = JSON.parse(localStorage.getItem('productAvailability') || '{}'); } catch (e) { availability = {}; }
+                    grid.innerHTML = products[category].map(product => {
+                        const isAvailable = availability[product.id] !== false;
+                        return `
+                        <div class="product-card">
+                            <img src="${product.image}" alt="${product.name}" class="product-image" style="width:100%; height:200px; object-fit:cover; border-radius:8px; margin-bottom:12px;">
+                            <div class="product-info">
+                                <div class="product-name">${product.name}${isAvailable ? '' : ' <span style="color:#c82333; font-weight:600;">(Unavailable)</span>'}</div>
+                                <div class="product-description">${product.description}</div>
+                                <div class="product-price">${product.price}</div>
+                                ${isAvailable ? `<button class="btn-add" data-original-disabled="false" onclick="addToCart(${product.id})">Add to Order</button>` : `<button class="btn-add" data-original-disabled="true" disabled style="opacity:0.5; cursor:not-allowed;">Unavailable</button>`}
+                            </div>
+                        </div>
+                    `;
+                    }).join('');
+                }
+            });
+            // Fallback: if no products grids exist in DOM (e.g. HTML sections removed),
+            // create a simple products area inside #mainSite so users still see the menu.
+            try {
+                const anyGrid = document.querySelectorAll('.products-grid');
+                let hasContent = false;
+                anyGrid.forEach(g => { if (g && g.children && g.children.length) hasContent = true; });
+                if (!hasContent) {
+                    const main = document.getElementById('mainSite');
+                    if (main) {
+                        let fallback = document.getElementById('fallback-products');
+                        if (!fallback) {
+                            fallback = document.createElement('div');
+                            fallback.id = 'fallback-products';
+                            fallback.className = 'section';
+                            const html = `
+                                <h2 class="section-title">☕ Menu</h2>
+                                <div class="products-grid" id="fallback-grid">
+                                    ${products.coffees.map(p=>`<div class="product-card"><img src="${p.image}" alt="${p.name}" class="product-image"><div class="product-info"><div class="product-name">${p.name}</div><div class="product-description">${p.description}</div><div class="product-price">${p.price}</div><button class="btn-add" data-original-disabled="false" onclick="addToCart(${p.id})">Add to Order</button></div></div>`).join('')}
+                                </div>
+                            `;
+                            fallback.innerHTML = html;
+                            // insert after header or at end of mainSite
+                            const header = main.querySelector('.site-header');
+                            if (header && header.parentNode) header.parentNode.insertBefore(fallback, header.nextSibling);
+                            else main.appendChild(fallback);
+                        }
+                    }
+                }
+            } catch (e) { console.warn('initializeProducts fallback error', e); }
+        }
+
+        // Lock ordering UI to prevent adding items while an order is being processed
+        function lockOrderingUI() {
+            try {
+                orderingLocked = true;
+                try { sessionStorage.setItem('orderingLocked', '1'); } catch (e) {}
+
+                const adds = document.querySelectorAll('.btn-add');
+                adds.forEach(b => {
+                    if (!b.hasAttribute('data-prev-disabled')) b.setAttribute('data-prev-disabled', b.disabled ? '1' : '0');
+                    b.disabled = true;
+                    b.classList.add('disabled-during-order');
+                });
+
+                // Full-screen blocking overlay so the user cannot interact while it's shown
+                let overlay = document.getElementById('orderingLockOverlay');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.id = 'orderingLockOverlay';
+                    overlay.style.position = 'fixed';
+                    overlay.style.left = '0';
+                    overlay.style.top = '0';
+                    overlay.style.width = '100%';
+                    overlay.style.height = '100%';
+                    overlay.style.display = 'flex';
+                    overlay.style.alignItems = 'center';
+                    overlay.style.justifyContent = 'center';
+                    overlay.style.background = 'rgba(0,0,0,0.35)';
+                    overlay.style.zIndex = 99999;
+
+                    const box = document.createElement('div');
+                    box.style.background = 'rgba(255,255,255,0.98)';
+                    box.style.padding = '14px 18px';
+                    box.style.borderRadius = '10px';
+                    box.style.boxShadow = '0 6px 20px rgba(0,0,0,0.2)';
+                    box.style.color = '#333';
+                    box.style.fontWeight = '600';
+                    box.style.fontSize = '0.95em';
+                    box.textContent = 'Order processing — menu temporarily locked';
+
+                    overlay.appendChild(box);
+                    document.body.appendChild(overlay);
+                }
+            } catch (e) { console.warn('lockOrderingUI failed', e); }
+        }
+
+        function unlockOrderingUI() {
+            try {
+                orderingLocked = false;
+                try { sessionStorage.removeItem('orderingLocked'); } catch (e) {}
+
+                const adds = document.querySelectorAll('.btn-add');
+                adds.forEach(b => {
+                    const prev = b.getAttribute('data-prev-disabled');
+                    if (prev === '1') {
+                        b.disabled = true;
+                        b.classList.remove('disabled-during-order');
+                    } else {
+                        b.disabled = false;
+                        b.classList.remove('disabled-during-order');
+                    }
+                    b.removeAttribute('data-prev-disabled');
+                });
+                const overlay = document.getElementById('orderingLockOverlay');
+                if (overlay) overlay.remove();
+            } catch (e) { console.warn('unlockOrderingUI failed', e); }
+        }
+
+        // Show Category
+        function showCategory(category) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.style.display = 'none';
+            });
+
+            // Show selected section
+            const sectionId = category + '-section';
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.style.display = 'block';
+            }
+
+            // Refresh products grid so availability and buttons are up-to-date
+            try { initializeProducts(); } catch (e) {}
+
+            // Update active menu item (guard event for programmatic calls)
+            try {
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                if (typeof event !== 'undefined' && event && event.target) {
+                    event.target.classList.add('active');
+                } else {
+                    // Try to find the matching menu item by its onclick attribute
+                    const menuItems = Array.from(document.querySelectorAll('.menu-item'));
+                    const found = menuItems.find(i => {
+                        const onclick = i.getAttribute('onclick') || '';
+                        return onclick.includes("showCategory('" + category + "')");
+                    });
+                    if (found) found.classList.add('active');
+                }
+            } catch (e) {
+                // ignore if no event
+            }
+
+            // If user opened Orders, prepare the confirm view
+            if (category === 'orders') {
+                prepareOrders();
+            }
+
+            // If user navigates to menu while they have an active order, keep orders-section visible
+            try {
+                const ordersSection = document.getElementById('orders-section');
+                if (typeof currentOrderId !== 'undefined' && currentOrderId && category !== 'orders' && ordersSection) {
+                    ordersSection.style.display = 'block';
+                }
+            } catch (e) {}
+
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+
+        // Add to Cart
+        function addToCart(productId) {
+            // respect ordering lock to prevent adds while processing
+            if (orderingLocked) {
+                showToast('Order is processing — please wait until it completes');
+                return;
+            }
+            // Find product across categories
+            let product = null;
+            for (const category in products) {
+                const found = products[category].find(p => p.id === productId);
+                if (found) { product = found; break; }
+            }
+            if (!product) return;
+
+            // Check availability
+            let availability = {};
+            try { availability = JSON.parse(localStorage.getItem('productAvailability') || '{}'); } catch (e) { availability = {}; }
+            if (availability[productId] === false) {
+                showToast('Sorry — this item is currently unavailable');
+                return;
+            }
+
+            // Add to cart
+            const existingItem = cart.find(item => item.id === product.id);
+            if (existingItem) existingItem.qty = (existingItem.qty || 1) + 1;
+            else cart.push({ id: product.id, name: product.name, price: product.price, qty: 1 });
+
+            // Persist cart in sessionStorage
+            sessionStorage.setItem('coffeeCart', JSON.stringify(cart));
+            updateOrderSummary();
+            showToast(`✓ ${product.name} added to your order!`);
+        }
+
+        function updateOrderSummary() {
+            const summary = document.getElementById('orderSummary');
+            if (!summary) return;
+            if (!cart || cart.length === 0) {
+                summary.textContent = translations[currentLanguage].order_empty || 'No items in your order yet.';
+                return;
+            }
+
+            let html = '<table style="width:100%; border-collapse:collapse;">';
+            html += '<tr><th style="text-align:left; padding:8px; color:#8B4513">Item</th><th style="padding:8px; text-align:center">Qty</th><th style="padding:8px; text-align:right">Price</th><th style="padding:8px; text-align:center">Action</th></tr>';
+            let total = 0;
+            cart.forEach((item, idx) => {
+                const price = parseFloat((item.price || '$0').toString().replace('$','')) || 0;
+                const subtotal = price * (item.qty || 1);
+                total += subtotal;
+                html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:8px">${item.name}</td><td style="padding:8px; text-align:center">${item.qty}</td><td style="padding:8px; text-align:right">$${subtotal.toFixed(2)}</td><td style="padding:8px; text-align:center"><button onclick="removeFromCart(${idx})" style="background:#c82333;color:#fff;border:none;padding:6px 8px;border-radius:6px;">Remove</button></td></tr>`;
+            });
+            html += `<tr><td colspan="2" style="padding:8px; font-weight:600;">Total</td><td style="padding:8px; text-align:right; font-weight:600">$${total.toFixed(2)}</td><td></td></tr>`;
+            html += '</table>';
+            summary.innerHTML = html;
+        }
+
+        function removeFromCart(index) {
+            if (!cart || typeof index !== 'number') return;
+            cart.splice(index, 1);
+            sessionStorage.setItem('coffeeCart', JSON.stringify(cart));
+            updateOrderSummary();
+            showToast('Item removed from cart');
+        }
+
+        // Submit Review
+        function submitReview(event) {
+            event.preventDefault();
+
+            const ratingEl = document.getElementById('reviewRating');
+            const titleEl = document.getElementById('reviewTitle');
+            const textEl = document.getElementById('reviewText');
+            if (!ratingEl || !titleEl || !textEl) return; // Guard: ensure review form elements exist
+            const rating = ratingEl.value;
+            const title = titleEl.value;
+            const text = textEl.value;
+
+            const review = {
+                author: userInfo.name + ' ' + userInfo.lastName,
+                rating: rating,
+                title: title,
+                text: text,
+                date: new Date().toLocaleDateString()
+            };
+
+            reviews.push(review);
+            saveReviews();
+            displayReviews();
+
+            // Clear form
+            document.getElementById('reviewForm').reset();
+            alert('Review submitted successfully!');
+        }
+
+        // Display Reviews
+        function displayReviews() {
+            const reviewsList = document.getElementById('reviewsList');
+            if (reviews.length === 0) {
+                reviewsList.innerHTML = '<div class="empty-message">No reviews yet. Be the first to leave a review!</div>';
+                return;
+            }
+
+            reviewsList.innerHTML = reviews.map((review, index) => `
+                <div class="review-item">
+                    <div class="review-header">
+                        <span class="review-author">${review.author}</span>
+                        <span class="review-date">${review.date}</span>
+                    </div>
+                    <div class="review-rating">${'⭐'.repeat(review.rating)}</div>
+                    <div style="font-weight: 600; color: #333; margin-bottom: 8px;">${review.title}</div>
+                    <div class="review-text">${review.text}</div>
+                </div>
+            `).join('');
+        }
+
+        // Save Reviews to localStorage
+        function saveReviews() {
+            localStorage.setItem('coffeeShopReviews', JSON.stringify(reviews));
+        }
+
+        // Load Reviews from localStorage
+        function loadReviews() {
+            const saved = localStorage.getItem('coffeeShopReviews');
+            if (saved) {
+                reviews = JSON.parse(saved);
+                displayReviews();
+            }
+        }
+
+        // Fix the bug in welcome form
+        // Fix the bug in welcome form (guard DOM elements)
+        try {
+            const fn = document.getElementById('firstName');
+            const ln = document.getElementById('lastName');
+            if (fn) fn.addEventListener('change', function() {
+                const lastName = (ln && ln.value) ? ln.value : document.getElementById('lastName') && document.getElementById('lastName').value;
+                if (this.value && lastName) {
+                    const id = generateId();
+                    const idEl = document.getElementById('userId');
+                    if (idEl) idEl.textContent = id;
+                    const idDisplay = document.getElementById('idDisplay');
+                    if (idDisplay) idDisplay.style.display = 'block';
+                }
+            });
+
+            if (ln) ln.addEventListener('change', function() {
+                const firstName = (fn && fn.value) ? fn.value : document.getElementById('firstName') && document.getElementById('firstName').value;
+                if (firstName && this.value) {
+                    const id = generateId();
+                    const idEl = document.getElementById('userId');
+                    if (idEl) idEl.textContent = id;
+                    const idDisplay = document.getElementById('idDisplay');
+                    if (idDisplay) idDisplay.style.display = 'block';
+                }
+            });
+        } catch (e) { console.error('welcome form guard error', e); }
+
+        /* Orders flow: prepare, payment selection, confirmation and simulation */
+        function prepareOrders() {
+            // reset views
+            const confirm = document.getElementById('order-confirm');
+            const status = document.getElementById('order-status');
+            if (confirm) confirm.style.display = 'block';
+            if (status) status.style.display = 'none';
+
+            // reset payment UI
+            document.querySelectorAll('.payment-option').forEach(el => el.classList.remove('active'));
+            const cfPrepare = document.getElementById('cardFields');
+            if (cfPrepare) cfPrepare.style.display = 'none';
+            // reset progress
+            const prog = document.getElementById('orderProgress');
+            if (prog) prog.style.width = '0%';
+            const statusText = document.getElementById('orderStatusText');
+            if (statusText) statusText.textContent = translations[currentLanguage].processing_payment || 'Processing payment...';
+            // update order summary with current cart
+            updateOrderSummary();
+            // render the user's own active & completed orders list
+            renderUserOrdersList();
+        }
+
+        function selectPayment(method) {
+            document.querySelectorAll('.payment-option').forEach(el => el.classList.remove('active'));
+            const el = document.querySelector(`.payment-option[data-pay="${method}"]`);
+            if (el) el.classList.add('active');
+
+            // Hide all payment fields
+            const cfEl = document.getElementById('cardFields');
+            const pfEl = document.getElementById('paypalFields');
+            if (cfEl) cfEl.style.display = 'none';
+            if (pfEl) pfEl.style.display = 'none';
+
+            // Show relevant fields based on method
+            if (method === 'card') {
+                if (cfEl) cfEl.style.display = 'block';
+            } else if (method === 'paypal') {
+                if (pfEl) pfEl.style.display = 'block';
+                // Initialize PayPal button when selected
+                setTimeout(() => {
+                    initPayPalButton();
+                }, 100);
+            }
+            
+            // store chosen method on the container for confirm
+            document.getElementById('orders-section').setAttribute('data-selected-pay', method);
+        }
+
+        function confirmOrder() {
+            const section = document.getElementById('orders-section');
+            const method = section.getAttribute('data-selected-pay') || 'cash';
+
+            // Prevent confirming an empty order
+            if (!cart || cart.length === 0) {
+                showValidationError('No Items', 'Please add items to your order before confirming.');
+                return;
+            }
+
+            // Calculate total for confirmation message
+            let total = 0;
+            cart.forEach(item => {
+                const price = parseFloat(item.price.replace('$', ''));
+                total += price * (item.qty || 1);
+            });
+
+            // Show confirmation modal
+            showConfirmationModal(
+                'Confirm Your Order?',
+                `Are you sure you want to confirm this order for $${total.toFixed(2)}?`,
+                () => {
+                    processOrder(method);
+                }
+            );
+        }
+
+        function processOrder(method) {
+            // handle payment types
+            if (method === 'card') {
+                const cnEl = document.getElementById('cardNumber');
+                const ceEl = document.getElementById('cardExpiry');
+                const ccEl = document.getElementById('cardCvv');
+                if (!cnEl || !ceEl || !ccEl) { showValidationError('Form Error', 'Card form fields missing.'); return; }
+                const num = cnEl.value.trim();
+                const exp = ceEl.value.trim();
+                const cvv = ccEl.value.trim();
+                
+                // Detailed validation with specific error messages
+                if (!num) {
+                    showValidationError('Card Number Required', 'Please enter your card number (12-19 digits)');
+                    return;
+                }
+                if (!exp) {
+                    showValidationError('Expiry Date Required', 'Please enter expiry date in MM/YY format (e.g., 12/25)');
+                    return;
+                }
+                if (!cvv) {
+                    showValidationError('CVV Required', 'Please enter your CVV (3-4 digits on back of card)');
+                    return;
+                }
+
+                // Validation checks
+                const okNum = /^[0-9\s]{12,19}$/.test(num.replace(/[^0-9]/g, ''));
+                const okExp = /^\d{2}\/\d{2}$/.test(exp);
+                const okCvv = /^\d{3,4}$/.test(cvv);
+                
+                if (!okNum) {
+                    showValidationError('Invalid Card Number', 'Card number must be 12-19 digits. Example: 4532 1488 0343 6467');
+                    return;
+                }
+                if (!okExp) {
+                    showValidationError('Invalid Expiry Date', 'Expiry must be in MM/YY format. Example: 12/25');
+                    return;
+                }
+                if (!okCvv) {
+                    showValidationError('Invalid CVV', 'CVV must be 3 or 4 digits. Example: 123');
+                    return;
+                }
+
+                // All valid - process payment
+                const masked = '**** **** **** ' + num.slice(-4);
+                const ostEl = document.getElementById('orderStatusText');
+                if (ostEl) ostEl.innerHTML = `<strong style="color:#8B4513">💳 Processing card payment...</strong><br><small>${masked}</small>`;
+                setTimeout(() => {
+                    const ostEl2 = document.getElementById('orderStatusText');
+                    if (ostEl2) ostEl2.textContent = translations[currentLanguage].processing_payment || 'Processing payment...';
+                    lockOrderingUI();
+                    const savedOrder = saveOrderToDatabase();
+                    startOrderSimulation(savedOrder);
+                }, 2000);
+            } else if (method === 'paypal') {
+                const peEl = document.getElementById('paypalEmail');
+                if (!peEl) { showValidationError('Form Error', 'PayPal email field missing.'); return; }
+                const email = peEl.value.trim();
+                
+                if (!email) {
+                    showValidationError('Email Required', 'Please enter your PayPal email address');
+                    return;
+                }
+                
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    showValidationError('Invalid Email Format', `"${email}" is not a valid email address. Example: user@example.com`);
+                    return;
+                }
+                
+                // All valid - show payment processing
+                const maskedEmail = email.substring(0, email.indexOf('@')) + '***@' + email.substring(email.indexOf('@') + 1);
+                const ost3 = document.getElementById('orderStatusText');
+                if (ost3) ost3.innerHTML = `<strong style="color:#003087">🔗 PayPal Payment</strong><br><small>Processing payment for: ${maskedEmail}</small>`;
+                
+                setTimeout(() => {
+                    const ost4 = document.getElementById('orderStatusText');
+                    if (ost4) ost4.textContent = translations[currentLanguage].processing_paypal || 'Processing PayPal payment...';
+                    lockOrderingUI();
+                    const savedOrder = saveOrderToDatabase();
+                    startOrderSimulation(savedOrder);
+                }, 2500);
+            } else if (method === 'cash') {
+                // Cash payment: show pickup instruction
+                const ost5 = document.getElementById('orderStatusText');
+                if (ost5) ost5.innerHTML = `<strong style="color:#27ae60">💵 Payment Method: Cash</strong><br><small>${translations[currentLanguage].awaiting_cash || 'Pay when picking up order'}</small>`;
+                setTimeout(() => {
+                    lockOrderingUI();
+                    const savedOrder = saveOrderToDatabase();
+                    startOrderSimulation(savedOrder);
+                }, 500);
+            }
+
+            // hide confirm view and show status
+            const ocEl = document.getElementById('order-confirm');
+            const osEl = document.getElementById('order-status');
+            if (ocEl) ocEl.style.display = 'none';
+            if (osEl) osEl.style.display = 'block';
+        }
+
+        function showValidationError(title, message) {
+            // Create backdrop for error modal
+            const backdrop = document.createElement('div');
+            backdrop.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 10000;
+            `;
+            
+            // Create error modal
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border: 2px solid #dc3545;
+                border-radius: 10px;
+                padding: 25px;
+                max-width: 400px;
+                z-index: 10001;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            `;
+            
+            errorDiv.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 2em; margin-bottom: 10px;">⚠️</div>
+                    <h3 style="color: #dc3545; margin: 10px 0; font-size: 1.2em;">${title}</h3>
+                    <p style="color: #666; margin: 15px 0; line-height: 1.5;">${message}</p>
+                    <button class="error-ok-btn" style="
+                        background: #dc3545;
+                        color: white;
+                        padding: 10px 25px;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">OK</button>
+                </div>
+            `;
+            
+            const okBtn = errorDiv.querySelector('.error-ok-btn');
+            okBtn.addEventListener('click', () => {
+                errorDiv.remove();
+                backdrop.remove();
+            });
+            
+            document.body.appendChild(backdrop);
+            document.body.appendChild(errorDiv);
+        }
+
+        function showConfirmationModal(title, message, onConfirm) {
+            // Create confirmation modal with Yes/No buttons
+            const confirmDiv = document.createElement('div');
+            confirmDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border: 2px solid #007bff;
+                border-radius: 10px;
+                padding: 30px;
+                max-width: 450px;
+                z-index: 10001;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            `;
+            
+            confirmDiv.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 2.5em; margin-bottom: 15px;">❓</div>
+                    <h3 style="color: #007bff; margin: 10px 0; font-size: 1.3em;">${title}</h3>
+                    <p style="color: #666; margin: 20px 0; line-height: 1.6;">${message}</p>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 25px;">
+                        <button class="cancel-btn" style="
+                            background: #6c757d;
+                            color: white;
+                            padding: 10px 30px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-weight: 600;
+                            font-size: 1em;
+                        ">No, Cancel</button>
+                        <button class="confirm-btn" style="
+                            background: #007bff;
+                            color: white;
+                            padding: 10px 30px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-weight: 600;
+                            font-size: 1em;
+                        ">Yes, Confirm</button>
+                    </div>
+                </div>
+            `;
+            
+            const cancelBtn = confirmDiv.querySelector('.cancel-btn');
+            const confirmBtn = confirmDiv.querySelector('.confirm-btn');
+            
+            cancelBtn.addEventListener('click', () => {
+                confirmDiv.remove();
+            });
+            
+            confirmBtn.addEventListener('click', () => {
+                confirmDiv.remove();
+                if (typeof onConfirm === 'function') {
+                    onConfirm();
+                }
+            });
+            
+            document.body.appendChild(confirmDiv);
+        }
+
+        let orderInterval = null;
+        let estimatedTimeCheckInterval = null;
+        let currentOrderId = null;
+        let bc = null;
+        
+        // Initialize BroadcastChannel for real-time inter-tab updates (fallback-safe)
+        try {
+            if (typeof BroadcastChannel !== 'undefined') {
+                bc = new BroadcastChannel('coffee_channel');
+                bc.onmessage = function(e) {
+                    try { handleBroadcastMessage(e.data); } catch (err) { console.warn('BC message handling error', err); }
+                };
+            }
+        } catch (e) {
+            bc = null;
+        }
+
+        function handleBroadcastMessage(msg) {
+            if (!msg || !msg.type) return;
+            // Order updated (estimated time changed)
+            if (msg.type === 'order_updated') {
+                try {
+                    const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+                    const order = orders.find(o => o.id === msg.orderId);
+                    if (order && order.id === currentOrderId) {
+                        const displayEl = document.getElementById('estimatedTimeDisplay');
+                        if (displayEl) displayEl.textContent = order.estimatedTime || 20;
+                        displayLastOrderInStatus(order);
+                    }
+                    renderUserOrdersList();
+                } catch (e) {}
+            }
+
+            // Order completed
+            if (msg.type === 'order_completed') {
+                try {
+                    if (msg.orderId === currentOrderId) {
+                        const statusText = document.getElementById('orderStatusText');
+                        if (statusText) {
+                            statusText.innerHTML = '✅ Your order is ready! Please pick it up.';
+                            statusText.style.color = '#27ae60';
+                            statusText.style.fontWeight = 'bold';
+                        }
+                        showToast('Your order is ready!');
+
+                        // Update the main status card to clearly show "ready" state
+                        try {
+                            const status = document.getElementById('order-status');
+                            if (status) {
+                                // Change the header from "being prepared" to "order ready"
+                                const header = status.querySelector('h3[data-i18n="preparing"]') || status.querySelector('h3');
+                                if (header) {
+                                    header.textContent = translations[currentLanguage].order_ready_heading || 'Your order is ready!';
+                                    header.style.color = '#27ae60';
+                                }
+
+                                // Update the description paragraph
+                                const desc = status.querySelector('p[data-i18n="preparing_desc"]');
+                                if (desc) desc.textContent = translations[currentLanguage].order_ready_desc || 'Please pick up your order at the counter.';
+
+                                // Swap the running coffee icon to a check mark
+                                const icon = status.querySelector('.running-coffee-order');
+                                if (icon) { icon.textContent = '✅'; icon.style.fontSize = '2.6em'; }
+
+                                // Hide progress bar and set it to 100%
+                                const bar = status.querySelector('.order-loading-bar');
+                                if (bar) bar.style.display = 'none';
+                                const progressEl = document.getElementById('orderProgress');
+                                if (progressEl) progressEl.style.width = '100%';
+
+                                // Hide action buttons in the status card (Add More / Browse), keep 'View Details'
+                                const buttons = status.querySelectorAll('button');
+                                buttons.forEach(b => {
+                                    if (b.id !== 'expand-last-order') b.style.display = 'none';
+                                });
+                            }
+                        } catch (e) { console.warn('cleanup after completion failed', e); }
+
+                        try { unlockOrderingUI(); } catch (e) {}
+                    }
+                    renderUserOrdersList();
+                } catch (e) {}
+            }
+
+            // New order created
+            if (msg.type === 'order_created') {
+                try {
+                    const user = JSON.parse(sessionStorage.getItem('userInfo') || '{}');
+                    if (msg.order && user && user.id && msg.order.customerId === user.id) {
+                        // Show last order and refresh user's orders list
+                        displayLastOrderInStatus(msg.order);
+                        renderUserOrdersList();
+                    }
+                } catch (e) {}
+            }
+        }
+
+        function startOrderSimulation(savedOrder) {
+            const progressEl = document.getElementById('orderProgress');
+            let progress = 0;
+            if (orderInterval) clearInterval(orderInterval);
+            orderInterval = setInterval(() => {
+                progress += Math.random() * 12; // increment randomly
+                if (progress >= 100) {
+                    progress = 100;
+                    progressEl.style.width = progress + '%';
+                    clearInterval(orderInterval);
+                    const statusText = document.getElementById('orderStatusText');
+                    statusText.textContent = translations[currentLanguage].order_confirmed_msg || 'Order confirmed! Preparing your items.';
+
+                    // If the order wasn't already saved by the payment flow, save it now.
+                    let createdOrder = savedOrder || null;
+                    if (!createdOrder) {
+                        createdOrder = saveOrderToDatabase();
+                    }
+                    // Display last order summary in the status area
+                    try { displayLastOrderInStatus(createdOrder); } catch (e) {}
+                    
+                    // Start polling for estimated time updates
+                    startEstimatedTimeUpdates();
+
+                    // Unlock ordering UI now that the order has finished preparing
+                    try { unlockOrderingUI(); } catch (e) { console.warn('unlockOrderingUI error', e); }
+
+                    // New Order button removed per request (use other UI controls to start a new order)
+
+                    return;
+                }
+                progressEl.style.width = Math.min(progress, 100) + '%';
+            }, 700);
+        }
+
+        function saveOrderToDatabase() {
+            // Get all order details
+            const userInfo = JSON.parse(sessionStorage.getItem('userInfo') || '{}');
+            const section = document.getElementById('orders-section');
+            const paymentMethod = section.getAttribute('data-selected-pay') || 'cash';
+            
+            // Calculate total
+            let total = 0;
+            cart.forEach(item => {
+                const price = parseFloat(item.price.replace('$', ''));
+                total += price * (item.qty || 1);
+            });
+            
+            // Create order object
+            const order = {
+                id: 'ORD-' + Date.now(),
+                customerName: (userInfo.name || 'Customer') + ' ' + (userInfo.lastName || ''),
+                customerId: userInfo.id || 'N/A',
+                table: userInfo.table || 'N/A',
+                items: cart.map(item => ({
+                    name: item.name,
+                    price: parseFloat(item.price.replace('$', '')),
+                    qty: item.qty || 1
+                })),
+                total: total,
+                paymentMethod: paymentMethod,
+                estimatedTime: 20, // Default 20 minutes
+                timestamp: new Date().toLocaleString(),
+                status: 'pending'
+            };
+            
+            // Save to localStorage
+            const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+            orders.push(order);
+            localStorage.setItem('coffeeOrders', JSON.stringify(orders));
+            
+            // Store order ID for customer to track updates
+            currentOrderId = order.id;
+            
+            // Clear the cart now that the order has been saved so new adds start fresh
+            cart = [];
+            try { sessionStorage.removeItem('coffeeCart'); } catch (e) {}
+            updateOrderSummary();
+
+            // Return the created order for immediate display in UI
+            // Broadcast creation so other tabs (and owner) see it instantly
+            try { if (bc) bc.postMessage({ type: 'order_created', order: order }); } catch (e) {}
+            renderUserOrdersList();
+            return order;
+        }
+
+        function startEstimatedTimeUpdates() {
+            // Poll for estimated time and status updates every 1 second
+            if (estimatedTimeCheckInterval) clearInterval(estimatedTimeCheckInterval);
+            
+            // Primary mechanism: BroadcastChannel messages will push updates.
+            // Fallback polling kept at a reduced frequency to handle environments
+            // that don't support BroadcastChannel.
+            estimatedTimeCheckInterval = setInterval(() => {
+                if (!currentOrderId) return;
+
+                // Check both pending and completed orders
+                const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]');
+                const completedOrders = JSON.parse(localStorage.getItem('completedOrders') || '[]');
+
+                let currentOrder = orders.find(o => o.id === currentOrderId);
+                let isCompleted = completedOrders.find(o => o.id === currentOrderId);
+
+                // Update estimated time if order still pending
+                if (currentOrder) {
+                    const estimatedTime = currentOrder.estimatedTime || 20;
+                    const displayEl = document.getElementById('estimatedTimeDisplay');
+                    if (displayEl) {
+                        displayEl.textContent = estimatedTime;
+                    }
+                    displayLastOrderInStatus(currentOrder);
+                }
+
+                // Show ready message if order is completed
+                if (isCompleted) {
+                    const statusText = document.getElementById('orderStatusText');
+                    if (statusText && statusText.textContent !== '✅ Your order is ready! Please pick it up.') {
+                        statusText.innerHTML = '✅ Your order is ready! Please pick it up.';
+                        statusText.style.color = '#27ae60';
+                        statusText.style.fontWeight = 'bold';
+                        statusText.style.fontSize = '1.1em';
+                        showToast('Your order is ready!');
+                    }
+                }
+                // Keep the user's active orders list up-to-date
+                renderUserOrdersList();
+            }, 3000);
+        }
+
+        function renderUserOrdersList() {
+            try {
+                const user = JSON.parse(sessionStorage.getItem('userInfo') || '{}');
+                if (!user || !user.id) return;
+
+                const orders = JSON.parse(localStorage.getItem('coffeeOrders') || '[]').filter(o => o.customerId === user.id);
+                const completed = JSON.parse(localStorage.getItem('completedOrders') || '[]').filter(o => o.customerId === user.id);
+
+                let container = document.getElementById('userOrdersList');
+                const ordersSection = document.getElementById('orders-section');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'userOrdersList';
+                    container.style.cssText = 'margin-top:18px; padding:12px; background:#fff; border-radius:8px; border:1px solid #eee;';
+                    if (ordersSection) ordersSection.appendChild(container);
+                }
+
+                let html = '<div style="font-weight:700; color:#8B4513; margin-bottom:8px;">Your Orders</div>';
+                if (orders.length === 0 && completed.length === 0) {
+                    html += '<div style="color:#666;">You have no orders yet.</div>';
+                    container.innerHTML = html;
+                    return;
+                }
+
+                if (orders.length > 0) {
+                    html += '<div style="margin-bottom:8px;"><div style="font-weight:600; color:#333; margin-bottom:6px;">Pending</div>';
+                    orders.forEach(o => {
+                        html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f1f1f1;">`;
+                        html += `<div style="font-size:0.95em;">#${o.id} — ${o.items.map(i=>i.name+ ' x'+i.qty).join(', ')}</div>`;
+                        html += `<div style="display:flex; gap:8px; align-items:center;"><div style="font-size:0.9em; color:#666;">${o.estimatedTime || 20}m</div><button class="btn-confirm" style="padding:6px 8px;" onclick="showOrderDetailsModal(${escapeHtmlForOnClick(o)})">Details</button></div>`;
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+                }
+
+                if (completed.length > 0) {
+                    html += '<div><div style="font-weight:600; color:#333; margin-bottom:6px;">Completed</div>';
+                    completed.forEach(o => {
+                        html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f1f1f1;">`;
+                        html += `<div style="font-size:0.95em;">#${o.id} — ${o.items.map(i=>i.name+ ' x'+i.qty).join(', ')}</div>`;
+                        html += `<div style="display:flex; gap:8px; align-items:center;"><div style="font-size:0.9em; color:#27ae60;">Ready</div><button class="btn-confirm" style="padding:6px 8px;" onclick="showOrderDetailsModal(${escapeHtmlForOnClick(o)})">Details</button></div>`;
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+                }
+
+                container.innerHTML = html;
+            } catch (e) {
+                console.warn('renderUserOrdersList error', e);
+            }
+        }
+
+        // Helper to safely stringify an order for inline onclick - we'll avoid direct JS object injection by attaching a data attribute instead
+        function escapeHtmlForOnClick(order) {
+            // Instead of returning JS object literal, create a unique temporary storage entry and return code to read it
+            try {
+                const key = 'tmpOrder_' + Math.random().toString(36).substr(2, 9);
+                sessionStorage.setItem(key, JSON.stringify(order));
+                return `(() => { const ord = JSON.parse(sessionStorage.getItem('${key}')); showOrderDetailsModal(ord); setTimeout(()=>sessionStorage.removeItem('${key}'), 2000); })()`;
+            } catch (e) {
+                return 'null';
+            }
+        }
+
+        // Display a compact summary of the last order inside the order-status area
+        function displayLastOrderInStatus(order) {
+            if (!order) return;
+            const status = document.getElementById('order-status');
+            if (!status) return;
+
+            // Remove existing last-order summary if present
+            const existing = status.querySelector('.last-order-summary');
+            if (existing) existing.remove();
+
+            const div = document.createElement('div');
+            div.className = 'last-order-summary';
+            div.style.cssText = 'margin-top:16px; padding:12px; background:#fff; border-radius:8px; text-align:left; color:#333; border:1px solid #eee;';
+
+            const items = order.items.map(i => `${i.name} x${i.qty}`).join(', ');
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:700; color:#8B4513;">Last Order: #${order.id}</div>
+                    <div style="font-size:0.9em; color:#666;">${order.timestamp || ''}</div>
+                </div>
+                <div style="font-size:0.95em; margin-top:8px;">${items}</div>
+                <div style="display:flex; justify-content:space-between; margin-top:8px; align-items:center;">
+                    <div style="font-size:0.95em;">Payment: ${order.paymentMethod}</div>
+                    <div style="font-size:0.95em; color:#8B4513; font-weight:700;">Total: $${order.total.toFixed(2)}</div>
+                </div>
+                <div style="margin-top:8px; text-align:right;"> <button class="btn-confirm" style="padding:6px 10px; font-size:0.9em;" id="expand-last-order">View Details</button></div>
+            `;
+
+            // Insert before the estimated time block if present
+            const estimatedBlock = status.querySelector('p[style*="Estimated time"]') || status.querySelector('.order-loading-bar');
+            if (estimatedBlock && estimatedBlock.parentNode) {
+                estimatedBlock.parentNode.insertBefore(div, estimatedBlock.nextSibling);
+            } else {
+                status.appendChild(div);
+            }
+
+            // Make the summary clickable to show full details
+            const expandBtn = div.querySelector('#expand-last-order');
+            if (expandBtn) {
+                expandBtn.addEventListener('click', () => {
+                    showOrderDetailsModal(order);
+                });
+            }
+        }
+
+        function showOrderDetailsModal(order) {
+            if (!order) return;
+            // Create backdrop
+            const backdrop = document.createElement('div');
+            backdrop.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10002;';
+
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:8px; max-width:600px; width:90%; z-index:10003; box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+
+            const itemsHtml = order.items.map(i => `<div style="display:flex; justify-content:space-between; padding:6px 0;"><div>${i.name} x${i.qty}</div><div style="font-weight:700; color:#8B4513;">$${(i.price * i.qty).toFixed(2)}</div></div>`).join('');
+
+            modal.innerHTML = `
+                <h3 style="margin-top:0; color:#8B4513;">Order Details - #${order.id}</h3>
+                <div style="color:#666; margin-bottom:8px;">Customer: ${order.customerName} (ID: ${order.customerId}) - Table: ${order.table}</div>
+                <div style="max-height:300px; overflow:auto; border-top:1px solid #eee; padding-top:8px;">${itemsHtml}</div>
+                <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;"><div style="font-weight:700; color:#8B4513;">Total: $${order.total.toFixed(2)}</div><div style="color:#666;">Payment: ${order.paymentMethod}</div></div>
+                <div style="margin-top:12px; text-align:right;"><button id="close-order-details" class="btn-cancel">Close</button></div>
+            `;
+
+            modal.querySelector('#close-order-details').addEventListener('click', () => {
+                modal.remove(); backdrop.remove();
+            });
+
+            document.body.appendChild(backdrop);
+            document.body.appendChild(modal);
+        }
+
+        function resetOrder() {
+            // Clear cart and reset UI
+            cart = [];
+            try { sessionStorage.removeItem('coffeeCart'); } catch (e) {}
+            try { sessionStorage.removeItem('paymentMethod'); } catch (e) {}
+            
+            
+            // Reset forms (guard each field)
+            const cnReset = document.getElementById('cardNumber');
+            if (cnReset) cnReset.value = '';
+            const ceReset = document.getElementById('cardExpiry');
+            if (ceReset) ceReset.value = '';
+            const ccReset = document.getElementById('cardCvv');
+            if (ccReset) ccReset.value = '';
+            const peReset = document.getElementById('paypalEmail');
+            if (peReset) peReset.value = '';
+            
+            // Keep order status visible, but show confirmation for new order
+            const ocReset = document.getElementById('order-confirm');
+            if (ocReset) ocReset.style.display = 'block';
+            
+            // Clear progress bar
+            const progressEl = document.getElementById('orderProgress');
+            if (progressEl) progressEl.style.width = '0%';
+            
+            // Remove any existing New Order buttons (keep other .btn-confirm like Details)
+            try {
+                const statusContainer = document.getElementById('order-status');
+                if (statusContainer) {
+                    const newBtns = statusContainer.querySelectorAll('.new-order-btn');
+                    newBtns.forEach(b => b.remove());
+                }
+            } catch (e) {}
+            
+            // Show menu
+            showCategory('coffees');
+            updateOrderSummary();
+            // Re-enable ordering UI when user starts a new order
+            try { unlockOrderingUI(); } catch (e) {}
+            showToast('Ready for next order!');
+        }
+
+        function showToast(message) {
+            // Create and show a toast notification
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            // Remove after animation completes (3 seconds)
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // PayPal Integration
+        function initPayPalButton() {
+            // Check if PayPal SDK is loaded
+            if (typeof paypal === 'undefined') {
+                console.log('PayPal SDK not loaded yet. Will load it now.');
+                loadPayPalSDK();
+                return;
+            }
+
+            // Clear previous buttons
+            const container = document.getElementById('paypal-button-container');
+            if (container && container.innerHTML) {
+                container.innerHTML = '';
+            }
+
+            // Create PayPal button
+            paypal.Buttons({
+                createOrder: function(data, actions) {
+                    // Calculate total from cart
+                    let total = 0;
+                    cart.forEach(item => {
+                        const price = parseFloat(item.price.replace('$', ''));
+                        total += price * item.qty;
+                    });
+                    
+                    // Minimum order of 0.01 for testing
+                    if (total < 0.01) total = 0.01;
+
+                    return actions.order.create({
+                        purchase_units: [{
+                            amount: {
+                                currency_code: 'USD',
+                                value: total.toFixed(2)
+                            },
+                            description: 'Coffee Shop Order'
+                        }]
+                    });
+                },
+                onApprove: function(data, actions) {
+                    return actions.order.capture().then(function(details) {
+                        // Payment successful
+                        const peSuccess = document.getElementById('paypalEmail');
+                        const email = peSuccess ? peSuccess.value : 'customer@example.com';
+                        const maskedEmail = email.substring(0, email.indexOf('@')) + '***@' + email.substring(email.indexOf('@') + 1);
+                        const ostSuccess = document.getElementById('orderStatusText');
+                        if (ostSuccess) ostSuccess.innerHTML = `<strong style="color:#003087">✓ PayPal Payment Successful</strong><br><small>Paid with: ${maskedEmail}</small>`;
+                        
+                        // Lock UI, save order and start order simulation using the saved snapshot
+                        lockOrderingUI();
+                        const savedOrder = saveOrderToDatabase();
+                        startOrderSimulation(savedOrder);
+                        
+                        // Hide order confirmation
+                        const ocSuccess = document.getElementById('order-confirm');
+                        if (ocSuccess) ocSuccess.style.display = 'none';
+                        const osSuccess = document.getElementById('order-status');
+                        if (osSuccess) osSuccess.style.display = 'block';
+                    });
+                },
+                onError: function(err) {
+                    alert('PayPal payment error: ' + err.message);
+                    console.error('PayPal error:', err);
+                }
+            }).render('#paypal-button-container');
+        }
+
+        function loadPayPalSDK() {
+            // Your PayPal Client ID (replace with your actual ID)
+            const clientId = 'AZj-vHWFtLoMmh3L-J1TkYGWf7cSakPmFDWfvLuGhBBCLVPf51yJ-40lFCjPY3tZqzMVvKBcMAZ5HQIB';
+            
+            // Check if script already exists
+            if (document.querySelector('script[src*="paypal"]')) {
+                console.log('PayPal SDK script already loaded');
+                return;
+            }
+
+            // Check if paypal is already available
+            if (typeof paypal !== 'undefined') {
+                console.log('PayPal SDK already available');
+                initPayPalButton();
+                return;
+            }
+
+            console.log('Loading PayPal SDK with Client ID...');
+
+            // Load PayPal SDK with retry logic
+            const script = document.createElement('script');
+            script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}`;
+            script.async = true;
+            let loadAttempts = 0;
+            const maxAttempts = 3;
+
+            script.onload = function() {
+                console.log('PayPal SDK loaded successfully');
+                // Wait for paypal to be available
+                const checkPaypal = setInterval(() => {
+                    if (typeof paypal !== 'undefined') {
+                        clearInterval(checkPaypal);
+                        console.log('PayPal object available, initializing button...');
+                        initPayPalButton();
+                    }
+                }, 100);
+                
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                    clearInterval(checkPaypal);
+                    if (typeof paypal === 'undefined') {
+                        console.error('PayPal SDK timeout - object not available');
+                        showPayPalFallback();
+                    }
+                }, 5000);
+            };
+
+            script.onerror = function() {
+                console.error('Failed to load PayPal SDK on attempt ' + (loadAttempts + 1));
+                loadAttempts++;
+                
+                if (loadAttempts < maxAttempts) {
+                    console.log('Retrying PayPal SDK load...');
+                    setTimeout(() => {
+                        loadPayPalSDK();
+                    }, 2000);
+                } else {
+                    console.error('PayPal SDK load failed after ' + maxAttempts + ' attempts');
+                    showPayPalFallback();
+                }
+            };
+
+            document.head.appendChild(script);
+        }
+
+        function showPayPalFallback() {
+            // Show manual PayPal payment form if SDK fails
+            const container = document.getElementById('paypal-button-container');
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; margin-top: 10px;">
+                        <p style="margin: 0 0 10px 0; color: #856404;"><strong>⚠️ PayPal Button Unavailable</strong></p>
+                        <p style="margin: 0 0 10px 0; color: #856404; font-size: 0.9em;">The PayPal button couldn't load. You can still proceed with payment by clicking below.</p>
+                        <button onclick="processPayPalFallback()" style="background: #003087; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+                            Process PayPal Payment
+                        </button>
+                        <p style="margin: 10px 0 0 0; color: #856404; font-size: 0.85em;">You will be redirected to PayPal to complete your payment.</p>
+                    </div>
+                `;
+                console.log('PayPal fallback form displayed');
+            }
+        }
+
+        function processPayPalFallback() {
+            const peF = document.getElementById('paypalEmail');
+            if (!peF) { showValidationError('Form Error', 'PayPal email field missing.'); return; }
+            const email = peF.value.trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid PayPal email address.');
+                return;
+            }
+
+            // Calculate order total
+            let total = 0;
+            cart.forEach(item => {
+                const price = parseFloat(item.price.replace('$', ''));
+                total += price * item.qty;
+            });
+
+            if (total < 0.01) total = 0.01;
+
+            // Show processing message
+            const maskedEmail = email.substring(0, email.indexOf('@')) + '***@' + email.substring(email.indexOf('@') + 1);
+            const ostFb = document.getElementById('orderStatusText');
+            if (ostFb) ostFb.innerHTML = `<strong style="color:#003087">🔗 Redirecting to PayPal...</strong><br><small>Amount: $${total.toFixed(2)} for ${maskedEmail}</small>`;
+
+            // Simulate payment processing
+                setTimeout(() => {
+                    const ostFb2 = document.getElementById('orderStatusText');
+                    if (ostFb2) ostFb2.textContent = 'Processing PayPal payment...';
+                    lockOrderingUI();
+                    const savedOrder = saveOrderToDatabase();
+                    startOrderSimulation(savedOrder);
+                }, 2000);
+
+            // Hide order confirmation
+            const ocFb = document.getElementById('order-confirm');
+            if (ocFb) ocFb.style.display = 'none';
+            const osFb = document.getElementById('order-status');
+            if (osFb) osFb.style.display = 'block';
+        }
+
+        // Load PayPal SDK on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadPayPalSDK);
+        } else {
+            loadPayPalSDK();
+        }
+
+        // Reapply ordering lock on page load if it was active (prevents bypass after refresh)
+        try {
+            if (sessionStorage.getItem('orderingLocked') === '1') {
+                // Delay slightly to allow DOM to be ready
+                window.addEventListener('load', () => {
+                    try { lockOrderingUI(); } catch (e) { console.warn('reapply lock failed', e); }
+                });
+            }
+        } catch (e) {}
+    </script>
+</body>
+</html>
